@@ -1,0 +1,7 @@
+site_code,scope,ghg_category,fuel_or_material,quantity,unit,period_year,period_month,scope_2_method,activity_description,supplier_name,supplier_tier
+LAGOS-HQ,1,stationary_combustion,diesel,5000,litre,2024,2,,,Generator fuel - February,
+ABUJA-OPS,2,purchased_electricity,grid_electricity,18000,kWh,2024,2,location_based,Office electricity February,,
+PHC-FAC,1,company_vehicles,diesel,1200,litre,2024,2,,,Fleet vehicles February,,
+KANO-HUB,3,business_travel,flight_short_haul,3200,passenger_km,2024,2,,,Lagos-Kano flights,,
+LAGOS-HQ,1,stationary_combustion,diesel,5000,litre,2024,2,,,Duplicate row to test dedup,,
+LAGOS-HQ,1,stationary_combustion,INVALID_FUEL,badqty,litres,2024,13,,,Bad row to test quarantine,,
