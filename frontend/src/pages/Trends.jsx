@@ -46,6 +46,7 @@ export default function Trends() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [scopeFilter, setScopeFilter] = useState('all')
+  const [yearFilter, setYearFilter] = useState('all')
 
   useEffect(() => {
     getOrganisations()
@@ -73,8 +74,16 @@ export default function Trends() {
     </div>
   )
 
+  // Filter by year if selected
+  const filteredData = yearFilter === 'all'
+    ? data
+    : data.filter((d) => d.period_year === parseInt(yearFilter))
+
+  // Unique years for selector
+  const availableYears = [...new Set(data.map((d) => d.period_year))].sort().reverse()
+
   // Format data points for charts
-  const chartData = data.map((d) => ({
+  const chartData = filteredData.map((d) => ({
     ...d,
     label: d.period_month
       ? `${MONTH_NAMES[d.period_month]} ${d.period_year}`
@@ -117,10 +126,22 @@ export default function Trends() {
             Emission trends across all reporting periods
           </p>
         </div>
-        <FilterBar
-          scopeFilter={scopeFilter}
-          setScopeFilter={setScopeFilter}
-        />
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <select
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value)}
+            style={{ width: 'auto', minWidth: '120px' }}
+          >
+            <option value="all">All Years</option>
+            {availableYears.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+          <FilterBar
+            scopeFilter={scopeFilter}
+            setScopeFilter={setScopeFilter}
+          />
+        </div>
       </div>
 
       {/* ── Summary KPIs ─────────────────────────────────── */}

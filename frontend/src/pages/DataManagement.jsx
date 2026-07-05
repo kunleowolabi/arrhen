@@ -329,6 +329,8 @@ export default function DataManagement() {
       const data = await res.json()
       setCalcResult(data)
       loadPending(org.id)
+      // Auto-refresh lineage to reflect updated record counts
+      loadLineage()
     } catch (e) {
       setCalcResult({ error: e.message })
     } finally {

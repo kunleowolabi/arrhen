@@ -172,3 +172,50 @@ def create_manual_record(
     db.commit()
     db.refresh(record)
     return record
+
+
+@router.post("/import/kobo")
+def import_from_kobo(
+    payload: dict,
+    db: Session = Depends(get_db),
+):
+    """
+    Imports submissions from KoboToolbox forms.
+    payload: { organisation_id, form_number (1/2/3 or 'all'), uploaded_by }
+    """
+    from backend.core.pipelines.kobo_connector import ArrhenKoboConnector
+    from uuid import UUID as UUIDType
+    import os
+
+    org_id = payload.get("organisation_id")
+    form_number = payload.get("form_number", "all")
+    uploaded_by = payload.get("uploaded_by", "api_user")
+
+    if not org_id:
+        raise HTTPException(status_code=400, detail="organisation_id required")
+
+    api_token = os.getenv("KOBO_API_TOKEN")
+    if not api_token:
+        raise HTTPException(
+            status_code=500,
+            detail="KOBO_API_TOKEN not configured on server",
+        )
+
+    connector = ArrhenKoboConnector(api_token=api_token)
+
+    try:
+        if form_number == "all":
+            return connector.import_all_forms(
+                db=db,
+                organisation_id=UUIDType(org_id),
+                uploaded_by=uploaded_by,
+            )
+        else:
+            return connector.import_form(
+                db=db,
+                form_number=int(form_number),
+                organisation_id=UUIDType(org_id),
+                uploaded_by=uploaded_by,
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

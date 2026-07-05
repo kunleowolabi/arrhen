@@ -338,18 +338,19 @@ export default function Overview() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const YEAR = 2024
+  const [year, setYear] = useState(2024)
+  const YEARS = [2024, 2023, 2022, 2021, 2020]
 
   useEffect(() => {
     getOrganisations()
       .then((orgs) => {
         if (!orgs || orgs.length === 0) throw new Error('No organisations found')
-        return getDashboardOverview(orgs[0].id, YEAR)
+        return getDashboardOverview(orgs[0].id, year)
       })
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [])
+  }, [year])
 
   if (loading) return (
     <div style={{ color: 'var(--text-muted)', padding: '16px' }}>
@@ -385,11 +386,33 @@ export default function Overview() {
   return (
     <div>
       {/* ── Page header ───────────────────────────────── */}
-      <div style={{ marginBottom: '32px' }}>
-        <h1>{data.organisation_name}</h1>
-        <p style={{ color: 'var(--text-muted)', marginTop: '6px' }}>
-          {YEAR} Emission Summary
-        </p>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: '32px',
+        flexWrap: 'wrap',
+        gap: '16px',
+      }}>
+        <div>
+          <h1>{data.organisation_name}</h1>
+          <p style={{ color: 'var(--text-muted)', marginTop: '6px' }}>
+            {year} Emission Summary
+          </p>
+        </div>
+        <select
+          value={year}
+          onChange={(e) => {
+            setYear(parseInt(e.target.value))
+            setData(null)
+            setLoading(true)
+          }}
+          style={{ width: 'auto', minWidth: '100px' }}
+        >
+          {YEARS.map((y) => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
       </div>
 
       {/* ── Target banner ─────────────────────────────── */}

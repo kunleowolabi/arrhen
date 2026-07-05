@@ -32,7 +32,7 @@ Usage:
 
 from datetime import date
 from sqlalchemy.orm import Session
-from backend.models import ActivityRecord, EmissionRecord, GWPVersion
+from backend.models import ActivityRecord, EmissionRecord, EmissionFactor, GWPVersion
 from backend.models.enums import DataStatus, ScopeType
 from backend.core.calculations.gwp import get_gas_gwp, GAS_KEYS
 from backend.core.calculations.factor_selector import (
@@ -246,6 +246,22 @@ def calculate_batch(
             "At least one of site_id, organisation_id, or period_year "
             "must be provided for batch calculation."
         )
+
+    # ── Pre-load emission factors for the batch ───────────────────────────────
+    # Fetch all factors once and resolve in memory — avoids N queries per batch
+    all_factors = db.query(EmissionFactor).filter(
+        (EmissionFactor.valid_to == None) |  # noqa: E711
+        (EmissionFactor.valid_to >= date.today())
+    ).all()
+
+    # Index by (activity_type, fuel_or_material, region)
+    # region=None = global default
+    factor_index: dict = {}
+    for f in all_factors:
+        key = (f.activity_type, f.fuel_or_material, f.region)
+        # Keep most recent valid_from if duplicates exist
+        if key not in factor_index or f.valid_from > factor_index[key].valid_from:
+            factor_index[key] = f
 
     # ── Build query ────────────────────────────────────────────────────────────
     query = db.query(ActivityRecord).filter(
