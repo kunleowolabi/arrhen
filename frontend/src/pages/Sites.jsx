@@ -240,7 +240,7 @@ export default function Sites() {
         marginBottom: '24px',
         overflow: 'hidden',
       }}>
-        <div style={{ height: '400px' }}>
+        <div style={{ height: 'clamp(220px, 40vw, 400px)' }}>
           <MapContainer
             center={mapCenter}
             zoom={6}
@@ -357,6 +357,7 @@ export default function Sites() {
       <div className="card" style={{
         padding: '28px',
         marginBottom: '24px',
+        overflowX: 'auto',
       }}>
         <div style={{ marginBottom: '20px' }}>
           <h2>Emission Intensity by Site</h2>

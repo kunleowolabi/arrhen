@@ -19,25 +19,15 @@ export default function Layout() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <Sidebar orgName={orgName} />
-
-      {/* Main content — offset by sidebar width on desktop */}
       <main
-        className="flex-1"
         style={{
+          flex: 1,
           marginLeft: '220px',
           padding: '32px',
           minHeight: '100vh',
-          // On mobile the sidebar becomes bottom nav
-          // so no left margin needed
         }}
+        className="main-content"
       >
-        {/* Remove left margin on mobile */}
-        <style>{`
-          @media (max-width: 768px) {
-            main { margin-left: 0 !important; padding-bottom: 80px !important; }
-          }
-        `}</style>
-
         <Outlet />
       </main>
     </div>

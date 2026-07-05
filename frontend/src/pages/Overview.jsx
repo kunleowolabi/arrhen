@@ -264,7 +264,7 @@ function TargetBanner({ targets, total }) {
       {/* ── Four stat cards ─────────────────────────── */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
         gap: '12px',
       }}>
         <StatCard
@@ -424,7 +424,7 @@ export default function Overview() {
       {/* ── Middle: donut + KPI 2×2 ───────────────────── */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
         gap: '24px',
         marginBottom: '24px',
       }}>
@@ -481,8 +481,7 @@ export default function Overview() {
         {/* KPI 2×2 grid */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gridTemplateRows: '1fr 1fr',
+          gridTemplateColumns: 'repeat(2, 1fr)',
           gap: '16px',
         }}>
           <KPICard
@@ -511,7 +510,7 @@ export default function Overview() {
       {/* ── Bottom: top sites + top sources ───────────── */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
         gap: '24px',
       }}>
         {/* Top emitting sites */}
