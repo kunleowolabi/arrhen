@@ -1,19 +1,29 @@
 /**
  * Axios client — configured to talk to the FastAPI backend.
- * All API calls in the app go through this instance.
+ * Attaches Supabase JWT token to every request via interceptor.
  */
 
 import axios from 'axios'
+import { supabase } from '../lib/supabase'
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const client = axios.create({
-  baseURL: 'http://localhost:8000/api/v1',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: `${API_BASE}/api/v1`,
+  headers: { 'Content-Type': 'application/json' },
   timeout: 30000,
 })
 
-// ── Response interceptor — centralised error handling ──────
+// Attach auth token to every request
+client.interceptors.request.use(async (config) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`
+  }
+  return config
+})
+
+// Response interceptor — centralised error handling
 client.interceptors.response.use(
   (response) => response.data,
   (error) => {
@@ -27,7 +37,7 @@ client.interceptors.response.use(
 
 export default client
 
-// ── API functions ──────────────────────────────────────────
+// ── API functions ──────────────────────────────────────────────────────────
 
 // Organisations
 export const getOrganisations = () => client.get('/organisations')
@@ -87,3 +97,6 @@ export const getEmissionIntensity = (orgId, year) =>
 // Reports
 export const downloadJsonReport = (orgId, year) =>
   client.get('/reports/json', { params: { organisation_id: orgId, period_year: year } })
+
+// Auth
+export const getMe = () => client.get('/auth/me')

@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import { getOrganisations } from '../../api/client'
+import { useAuth } from '../../context/AuthContext'
 
 export default function Layout() {
+  const { user, signOut } = useAuth()
   const [orgName, setOrgName] = useState('')
 
   useEffect(() => {

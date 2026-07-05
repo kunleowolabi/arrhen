@@ -101,6 +101,23 @@ MIN_YEAR = 1990
 MAX_YEAR = 2100
 
 
+# Characters that trigger formula injection in spreadsheet applications
+CSV_INJECTION_CHARS = ('=', '+', '-', '@', chr(9), chr(13))
+
+
+def _sanitise_field(value: str) -> str:
+    """
+    Strips leading characters that could trigger CSV/formula injection
+    in spreadsheet applications. Applied to all free-text fields.
+    """
+    if not isinstance(value, str):
+        return value
+    value = value.strip()
+    while value and value[0] in CSV_INJECTION_CHARS:
+        value = value[1:].strip()
+    return value
+
+
 @dataclass
 class ValidationResult:
     """Result of validating a single data row."""
@@ -254,13 +271,13 @@ def validate_row(
         cleaned["scope_2_method"] = None
 
     # ── 11. Optional fields ───────────────────────────────────────────────────
-    cleaned["activity_description"] = str(
-        row.get("activity_description", "") or ""
-    ).strip() or None
+    cleaned["activity_description"] = _sanitise_field(
+        str(row.get("activity_description", "") or "")
+    ) or None
 
-    cleaned["supplier_name"] = str(
-        row.get("supplier_name", "") or ""
-    ).strip() or None
+    cleaned["supplier_name"] = _sanitise_field(
+        str(row.get("supplier_name", "") or "")
+    ) or None
 
     supplier_tier_raw = row.get("supplier_tier")
     if supplier_tier_raw is not None and str(supplier_tier_raw).strip():

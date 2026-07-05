@@ -107,7 +107,7 @@ export default function Reports() {
 
       } else if (reportType === 'audit') {
         const res = await fetch(
-          `http://localhost:8000/api/v1/reports/audit-trail?organisation_id=${org.id}&period_year=${selectedYear}`
+          `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/reports/audit-trail?organisation_id=${org.id}&period_year=${selectedYear}`
         )
         const data = await res.json()
         _downloadBlob(
@@ -119,7 +119,7 @@ export default function Reports() {
 
       } else if (reportType === 'pdf') {
         const res = await fetch(
-          `http://localhost:8000/api/v1/reports/pdf?organisation_id=${org.id}&period_year=${selectedYear}`
+          `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/reports/pdf?organisation_id=${org.id}&period_year=${selectedYear}`
         )
         if (!res.ok) throw new Error('PDF generation failed')
         const blob = await res.blob()

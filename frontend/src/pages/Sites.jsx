@@ -44,7 +44,7 @@ function AddSiteModal({ orgId, onClose, onSaved }) {
         longitude: form.longitude ? parseFloat(form.longitude) : null,
       }
       const res = await fetch(
-        `http://localhost:8000/api/v1/organisations/${orgId}/sites`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/organisations/${orgId}/sites`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

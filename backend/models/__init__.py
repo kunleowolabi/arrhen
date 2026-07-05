@@ -8,6 +8,7 @@ from backend.models.organisation import Organisation, Site
 from backend.models.activity import ActivityRecord, DataLineage
 from backend.models.emission import EmissionFactor, EmissionRecord
 from backend.models.target import Target
+from backend.models.user import User, OrganisationMembership, UserRole
 
 __all__ = [
     "Base",
@@ -18,4 +19,5 @@ __all__ = [
     "ActivityRecord", "DataLineage",
     "EmissionFactor", "EmissionRecord",
     "Target",
+    "User", "OrganisationMembership", "UserRole",
 ]

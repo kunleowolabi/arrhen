@@ -1,9 +1,11 @@
 """
-Central API router — registers all endpoint groups with their prefixes.
-Imported by main.py and mounted on the FastAPI app.
+Central API router.
+All routes under /api/v1/ require authentication except /health.
+Auth is enforced via Depends(get_current_user) on the main router.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from backend.api.auth import get_current_user
 from backend.api import (
     organisations,
     activity,
@@ -13,9 +15,16 @@ from backend.api import (
     geo,
     reports,
 )
+from backend.api import auth_router
 
-router = APIRouter()
+# Protected router — all included routes require valid JWT
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
+router.include_router(
+    auth_router.router,
+    prefix="/auth",
+    tags=["Auth"],
+)
 router.include_router(
     organisations.router,
     prefix="/organisations",

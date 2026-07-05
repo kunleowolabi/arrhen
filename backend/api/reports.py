@@ -13,6 +13,8 @@ import io
 
 from backend.db.database import get_db
 from backend.models import Organisation
+from backend.api.auth import get_current_user, validate_org_access
+from backend.models.user import User
 from backend.core.reporting.report_generator import (
     generate_json_report,
     generate_pdf_report,
@@ -26,7 +28,9 @@ def export_json_report(
     organisation_id: UUID,
     period_year: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    validate_org_access(organisation_id, current_user, db)
     """
     Generates a full JSON emission inventory for the given
     organisation and year. Machine-readable export for
@@ -49,7 +53,9 @@ def export_pdf_report(
     organisation_id: UUID,
     period_year: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    validate_org_access(organisation_id, current_user, db)
     """
     Generates a formatted PDF emission report.
     Returns the PDF as a downloadable file stream.

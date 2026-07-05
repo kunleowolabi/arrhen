@@ -41,3 +41,5 @@ logs/
 htmlcov/
 .pytest_cache/
 frontend/README.md
+frontend/.env
+frontend/.env.production

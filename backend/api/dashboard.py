@@ -32,6 +32,8 @@ from backend.core.materiality.screener import (
     get_site_breakdown,
 )
 from backend.core.calculations.scope2_handler import get_scope2_summary
+from backend.api.auth import get_current_user, validate_org_access
+from backend.models.user import User
 from backend.models.enums import ScopeType
 
 router = APIRouter()
@@ -42,7 +44,9 @@ def get_overview(
     organisation_id: UUID,
     period_year: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    validate_org_access(organisation_id, current_user, db)
     org = db.query(Organisation).filter_by(id=organisation_id).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organisation not found")

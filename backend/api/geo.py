@@ -13,6 +13,8 @@ from typing import Optional
 from backend.db.database import get_db
 from backend.models import Site, ActivityRecord, EmissionRecord
 from backend.core.materiality.screener import get_site_breakdown
+from backend.api.auth import get_current_user, validate_org_access
+from backend.models.user import User
 
 router = APIRouter()
 
@@ -21,7 +23,9 @@ router = APIRouter()
 def get_sites_geojson(
     organisation_id: UUID,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    validate_org_access(organisation_id, current_user, db)
     """
     Returns all sites as a GeoJSON FeatureCollection.
     Used by Leaflet to render site markers on the map.
@@ -62,7 +66,9 @@ def get_emission_intensity_geojson(
     organisation_id: UUID,
     period_year: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    validate_org_access(organisation_id, current_user, db)
     """
     Returns sites as GeoJSON with emission intensity data.
     Properties include total_co2e_tonnes and intensity_rank

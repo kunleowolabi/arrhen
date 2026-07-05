@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 
 const navItems = [
   { path: '/',        label: 'Overview' },
@@ -11,6 +12,7 @@ const navItems = [
 ]
 
 export default function Sidebar({ orgName }) {
+  const { user, signOut } = useAuth()
   return (
     <>
       {/* ── Desktop sidebar ─────────────────────────── */}
@@ -78,12 +80,31 @@ export default function Sidebar({ orgName }) {
           ))}
         </nav>
 
-        <div style={{
-          padding: '24px',
-          fontSize: '11px',
-          color: 'var(--text-muted)',
-        }}>
-          v0.1.0 · BUSL-1.1
+        <div style={{ padding: '16px 24px' }}>
+          <div style={{
+            fontSize: '11px',
+            color: 'var(--text-muted)',
+            marginBottom: '8px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}>
+            {user?.email}
+          </div>
+          <button
+            className="btn"
+            style={{ width: '100%', fontSize: '12px', justifyContent: 'center' }}
+            onClick={signOut}
+          >
+            Sign out
+          </button>
+          <div style={{
+            fontSize: '10px',
+            color: 'var(--text-muted)',
+            marginTop: '8px',
+          }}>
+            v0.1.0 · BUSL-1.1
+          </div>
         </div>
       </aside>
 

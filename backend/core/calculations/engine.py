@@ -4,12 +4,17 @@ Calculation Engine
 Core logic for converting activity records into emission records.
 
 For each ActivityRecord:
-1. Select the appropriate emission factor (with regional fallback)
-2. Multiply quantity by each gas factor to get raw kg per gas
-3. Multiply each gas kg by its GWP to get CO2e per gas
-4. Sum all gas CO2e to get total CO2e
-5. Write EmissionRecord to database
-6. Update ActivityRecord status to "calculated"
+1. Validate quantity
+2. Select the appropriate emission factor (with regional fallback)
+3. Multiply quantity by each gas factor to get raw kg per gas
+4. Multiply each gas kg by its GWP to get CO2e per gas
+5. Sum all gas CO2e to get total CO2e
+6. Write EmissionRecord to database
+7. Update ActivityRecord status to "calculated"
+
+Batch calculations flush per record but commit once at the end.
+Failed records are marked with status=error and logged — they do
+not crash the batch or prevent other records from being processed.
 
 Usage:
     from backend.core.calculations.engine import calculate, calculate_batch
@@ -17,11 +22,10 @@ Usage:
     # Single record
     emission_record = calculate(db, activity_record, GWPVersion.AR6)
 
-    # All pending records for a site/period
+    # All pending records for an organisation
     results = calculate_batch(
         db=db,
-        site_id=site_id,
-        period_year=2024,
+        organisation_id=org_id,
         gwp_version=GWPVersion.AR6,
     )
 """
@@ -46,6 +50,105 @@ class CalculationError(Exception):
     pass
 
 
+def _compute_and_write(
+    db: Session,
+    activity_record: ActivityRecord,
+    factor,
+    gwp_version: GWPVersion,
+    fallback_used: bool,
+) -> EmissionRecord:
+    """
+    Shared compute-and-persist function.
+    Called by both the standard engine and the Scope 2 market-based handler.
+
+    Takes a resolved emission factor and writes the EmissionRecord.
+    Flushes to the session but does NOT commit — the caller owns the commit.
+    """
+    qty = activity_record.quantity
+
+    gas_kg = {
+        "co2": qty * factor.co2_factor,
+        "ch4": qty * factor.ch4_factor,
+        "n2o": qty * factor.n2o_factor,
+        "hfc": qty * factor.hfc_factor,
+        "pfc": qty * factor.pfc_factor,
+        "sf6": qty * factor.sf6_factor,
+        "nf3": qty * factor.nf3_factor,
+    }
+
+    # Per-compound GWP resolution for HFC/PFC
+    # compound_fallback tracks if aggregate GWP was used instead of
+    # a per-compound value — merged with factor_fallback_used on the record
+    gas_co2e = {}
+    compound_fallback = False
+    fuel = activity_record.fuel_or_material
+    for gas in GAS_KEYS:
+        gwp_value, used_aggregate = get_gas_gwp(gas, gwp_version, fuel)
+        gas_co2e[gas] = gas_kg[gas] * gwp_value
+        if used_aggregate:
+            compound_fallback = True
+
+    # Either factor OR compound fallback triggers the flag
+    effective_fallback = fallback_used or compound_fallback
+
+    total_co2e_kg = sum(gas_co2e.values())
+    total_co2e_tonnes = total_co2e_kg / 1000
+
+    existing = db.query(EmissionRecord).filter_by(
+        activity_record_id=activity_record.id
+    ).first()
+
+    if existing:
+        existing.emission_factor_id = factor.id
+        existing.co2_kg = gas_kg["co2"]
+        existing.ch4_kg = gas_kg["ch4"]
+        existing.n2o_kg = gas_kg["n2o"]
+        existing.hfc_kg = gas_kg["hfc"]
+        existing.pfc_kg = gas_kg["pfc"]
+        existing.sf6_kg = gas_kg["sf6"]
+        existing.nf3_kg = gas_kg["nf3"]
+        existing.co2_co2e = gas_co2e["co2"]
+        existing.ch4_co2e = gas_co2e["ch4"]
+        existing.n2o_co2e = gas_co2e["n2o"]
+        existing.hfc_co2e = gas_co2e["hfc"]
+        existing.pfc_co2e = gas_co2e["pfc"]
+        existing.sf6_co2e = gas_co2e["sf6"]
+        existing.nf3_co2e = gas_co2e["nf3"]
+        existing.total_co2e_kg = total_co2e_kg
+        existing.total_co2e_tonnes = total_co2e_tonnes
+        existing.gwp_version = gwp_version
+        existing.factor_fallback_used = effective_fallback
+        emission_record = existing
+    else:
+        emission_record = EmissionRecord(
+            activity_record_id=activity_record.id,
+            emission_factor_id=factor.id,
+            co2_kg=gas_kg["co2"],
+            ch4_kg=gas_kg["ch4"],
+            n2o_kg=gas_kg["n2o"],
+            hfc_kg=gas_kg["hfc"],
+            pfc_kg=gas_kg["pfc"],
+            sf6_kg=gas_kg["sf6"],
+            nf3_kg=gas_kg["nf3"],
+            co2_co2e=gas_co2e["co2"],
+            ch4_co2e=gas_co2e["ch4"],
+            n2o_co2e=gas_co2e["n2o"],
+            hfc_co2e=gas_co2e["hfc"],
+            pfc_co2e=gas_co2e["pfc"],
+            sf6_co2e=gas_co2e["sf6"],
+            nf3_co2e=gas_co2e["nf3"],
+            total_co2e_kg=total_co2e_kg,
+            total_co2e_tonnes=total_co2e_tonnes,
+            gwp_version=gwp_version,
+            factor_fallback_used=effective_fallback,
+        )
+        db.add(emission_record)
+
+    activity_record.status = DataStatus.calculated
+    db.flush()
+    return emission_record
+
+
 def calculate(
     db: Session,
     activity_record: ActivityRecord,
@@ -53,32 +156,26 @@ def calculate(
 ) -> EmissionRecord:
     """
     Calculates emissions for a single ActivityRecord.
-
-    Steps:
-    1. Resolve the site region for factor selection
-    2. Select the best emission factor
-    3. Calculate raw gas masses (kg)
-    4. Apply GWP to get CO2e per gas
-    5. Sum to total CO2e
-    6. Write and return EmissionRecord
-
-    Args:
-        db:              SQLAlchemy session
-        activity_record: The validated ActivityRecord to calculate
-        gwp_version:     GWPVersion.AR5 or GWPVersion.AR6
-
-    Returns:
-        EmissionRecord written to database
-
-    Raises:
-        CalculationError if factor not found or calculation fails
+    Resolves factor, delegates to _compute_and_write.
+    Does NOT commit — caller owns the transaction.
     """
+
+    # ── Validate quantity ──────────────────────────────────────────────────────
+    if activity_record.quantity is None:
+        raise CalculationError(
+            f"ActivityRecord {activity_record.id} has no quantity value."
+        )
+    if activity_record.quantity <= 0:
+        raise CalculationError(
+            f"ActivityRecord {activity_record.id} has invalid quantity "
+            f"{activity_record.quantity} — must be greater than zero."
+        )
 
     # ── Resolve region from site ───────────────────────────────────────────────
     site = activity_record.site
     region = site.region if site else None
 
-    # ── Determine reference date for factor validity check ────────────────────
+    # ── Determine reference date ───────────────────────────────────────────────
     if activity_record.period_month:
         reference_date = date(
             activity_record.period_year,
@@ -102,80 +199,18 @@ def calculate(
             f"Cannot calculate ActivityRecord {activity_record.id}: {e}"
         )
 
-    # ── Calculate raw gas masses (kg) ─────────────────────────────────────────
-    qty = activity_record.quantity
-
-    gas_kg = {
-        "co2": qty * factor.co2_factor,
-        "ch4": qty * factor.ch4_factor,
-        "n2o": qty * factor.n2o_factor,
-        "hfc": qty * factor.hfc_factor,
-        "pfc": qty * factor.pfc_factor,
-        "sf6": qty * factor.sf6_factor,
-        "nf3": qty * factor.nf3_factor,
-    }
-
-    # ── Apply GWP to get CO2e per gas ─────────────────────────────────────────
-    gas_co2e = {}
-    for gas in GAS_KEYS:
-        gwp_value = get_gas_gwp(gas, gwp_version)
-        gas_co2e[gas] = gas_kg[gas] * gwp_value
-
-    # ── Sum to total CO2e ─────────────────────────────────────────────────────
-    total_co2e_kg = sum(gas_co2e.values())
-    total_co2e_tonnes = total_co2e_kg / 1000
-
-    # ── Check if EmissionRecord already exists — update if so ─────────────────
-    existing = db.query(EmissionRecord).filter_by(
-        activity_record_id=activity_record.id
-    ).first()
-
-    if existing:
-        _update_emission_record(
-            record=existing,
-            gas_kg=gas_kg,
-            gas_co2e=gas_co2e,
-            total_co2e_kg=total_co2e_kg,
-            total_co2e_tonnes=total_co2e_tonnes,
-            factor_id=factor.id,
-            gwp_version=gwp_version,
-            fallback_used=fallback_used,
-        )
-        emission_record = existing
-    else:
-        emission_record = EmissionRecord(
-            activity_record_id=activity_record.id,
-            emission_factor_id=factor.id,
-            co2_kg=gas_kg["co2"],
-            ch4_kg=gas_kg["ch4"],
-            n2o_kg=gas_kg["n2o"],
-            hfc_kg=gas_kg["hfc"],
-            pfc_kg=gas_kg["pfc"],
-            sf6_kg=gas_kg["sf6"],
-            nf3_kg=gas_kg["nf3"],
-            co2_co2e=gas_co2e["co2"],
-            ch4_co2e=gas_co2e["ch4"],
-            n2o_co2e=gas_co2e["n2o"],
-            hfc_co2e=gas_co2e["hfc"],
-            pfc_co2e=gas_co2e["pfc"],
-            sf6_co2e=gas_co2e["sf6"],
-            nf3_co2e=gas_co2e["nf3"],
-            total_co2e_kg=total_co2e_kg,
-            total_co2e_tonnes=total_co2e_tonnes,
-            gwp_version=gwp_version,
-            factor_fallback_used=fallback_used,
-        )
-        db.add(emission_record)
-
-    # ── Update ActivityRecord status ───────────────────────────────────────────
-    activity_record.status = DataStatus.calculated
-    db.commit()
-    db.refresh(emission_record)
+    emission_record = _compute_and_write(
+        db=db,
+        activity_record=activity_record,
+        factor=factor,
+        gwp_version=gwp_version,
+        fallback_used=fallback_used,
+    )
 
     log.info(
         "emission_calculated",
         activity_record_id=str(activity_record.id),
-        total_co2e_tonnes=round(total_co2e_tonnes, 4),
+        total_co2e_tonnes=round(emission_record.total_co2e_tonnes, 4),
         gwp_version=gwp_version,
         fallback_used=fallback_used,
     )
@@ -193,26 +228,18 @@ def calculate_batch(
     scope: ScopeType | None = None,
 ) -> dict:
     """
-    Runs calculations for multiple ActivityRecords matching the given filters.
+    Runs calculations for multiple ActivityRecords matching filters.
     At least one filter must be provided.
 
-    Args:
-        db:               SQLAlchemy session
-        gwp_version:      GWPVersion to apply
-        site_id:          Optional — filter by site
-        organisation_id:  Optional — filter by organisation (all sites)
-        period_year:      Optional — filter by year
-        period_month:     Optional — filter by month
-        scope:            Optional — filter by scope
+    Batch behaviour:
+    - Each record is calculated and flushed individually
+    - A single commit is issued at the end of the batch
+    - If a record fails, it is marked status=error with a reason
+      and the batch continues — partial failure does not abort
+    - Only the final commit can fail (e.g. DB connection loss)
+      in which case no records from this batch are persisted
 
-    Returns:
-        Dictionary with counts:
-        {
-            "total": int,
-            "success": int,
-            "failed": int,
-            "errors": list of error strings
-        }
+    Returns summary dict with counts and any error messages.
     """
     if not any([site_id, organisation_id, period_year]):
         raise CalculationError(
@@ -220,7 +247,7 @@ def calculate_batch(
             "must be provided for batch calculation."
         )
 
-    # ── Build query ───────────────────────────────────────────────────────────
+    # ── Build query ────────────────────────────────────────────────────────────
     query = db.query(ActivityRecord).filter(
         ActivityRecord.status == DataStatus.validated,
         ActivityRecord.is_flagged_duplicate == False,  # noqa: E712
@@ -246,7 +273,6 @@ def calculate_batch(
 
     records = query.all()
 
-    # ── Run calculations ───────────────────────────────────────────────────────
     results = {
         "total": len(records),
         "success": 0,
@@ -254,18 +280,34 @@ def calculate_batch(
         "errors": [],
     }
 
+    # ── Process each record — flush per record, commit once ────────────────────
     for record in records:
         try:
             calculate(db=db, activity_record=record, gwp_version=gwp_version)
             results["success"] += 1
-        except CalculationError as e:
+        except (CalculationError, Exception) as e:
             results["failed"] += 1
-            results["errors"].append(str(e))
+            error_msg = str(e)
+            results["errors"].append(error_msg)
+            # Mark record as error so it is visible in Flags & Quarantine
+            record.status = DataStatus.quarantined
+            record.flag_reason = f"Calculation error: {error_msg}"
+            db.flush()
             log.error(
                 "calculation_failed",
                 activity_record_id=str(record.id),
-                error=str(e),
+                error=error_msg,
             )
+
+    # ── Single commit for the entire batch ─────────────────────────────────────
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        log.error("batch_commit_failed", error=str(e))
+        raise CalculationError(
+            f"Batch commit failed — no records were saved: {e}"
+        )
 
     log.info(
         "batch_calculation_complete",
@@ -273,38 +315,3 @@ def calculate_batch(
     )
 
     return results
-
-
-def _update_emission_record(
-    record: EmissionRecord,
-    gas_kg: dict,
-    gas_co2e: dict,
-    total_co2e_kg: float,
-    total_co2e_tonnes: float,
-    factor_id: uuid.UUID,
-    gwp_version: GWPVersion,
-    fallback_used: bool,
-) -> None:
-    """
-    Updates an existing EmissionRecord in place.
-    Called when a recalculation is triggered (e.g. GWP version change).
-    """
-    record.emission_factor_id = factor_id
-    record.co2_kg = gas_kg["co2"]
-    record.ch4_kg = gas_kg["ch4"]
-    record.n2o_kg = gas_kg["n2o"]
-    record.hfc_kg = gas_kg["hfc"]
-    record.pfc_kg = gas_kg["pfc"]
-    record.sf6_kg = gas_kg["sf6"]
-    record.nf3_kg = gas_kg["nf3"]
-    record.co2_co2e = gas_co2e["co2"]
-    record.ch4_co2e = gas_co2e["ch4"]
-    record.n2o_co2e = gas_co2e["n2o"]
-    record.hfc_co2e = gas_co2e["hfc"]
-    record.pfc_co2e = gas_co2e["pfc"]
-    record.sf6_co2e = gas_co2e["sf6"]
-    record.nf3_co2e = gas_co2e["nf3"]
-    record.total_co2e_kg = total_co2e_kg
-    record.total_co2e_tonnes = total_co2e_tonnes
-    record.gwp_version = gwp_version
-    record.factor_fallback_used = fallback_used

@@ -119,23 +119,52 @@ def create_manual_record(
     payload: dict,
     db: Session = Depends(get_db),
 ):
-    from backend.models.enums import ScopeType, Scope2Method, DataStatus
+    """
+    Creates a single ActivityRecord from a manual form entry.
+    Validates required fields and writes directly to the database.
+    """
+    required = ["site_id", "scope", "ghg_category", "fuel_or_material",
+                "quantity", "unit", "period_year"]
+    missing = [f for f in required if not payload.get(f)]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required fields: {', '.join(missing)}",
+        )
+
+    try:
+        quantity = float(payload["quantity"])
+        if quantity <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="quantity must be greater than zero",
+            )
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=400,
+            detail="quantity must be a valid number",
+        )
+
+    scope_2_method = None
+    if payload.get("scope_2_method"):
+        from backend.models.enums import Scope2Method
+        scope_2_method = Scope2Method(payload["scope_2_method"])
+
     record = ActivityRecord(
         site_id=payload["site_id"],
         scope=ScopeType(payload["scope"]),
-        scope_2_method=Scope2Method(payload["scope_2_method"])
-        if payload.get("scope_2_method") else None,
+        scope_2_method=scope_2_method,
         ghg_category=payload["ghg_category"],
         fuel_or_material=payload["fuel_or_material"],
-        quantity=float(payload["quantity"]),
+        quantity=quantity,
         unit=payload["unit"],
         period_year=int(payload["period_year"]),
         period_month=int(payload["period_month"])
-        if payload.get("period_month") else None,
+            if payload.get("period_month") else None,
         activity_description=payload.get("activity_description"),
         supplier_name=payload.get("supplier_name"),
         supplier_tier=int(payload["supplier_tier"])
-        if payload.get("supplier_tier") else None,
+            if payload.get("supplier_tier") else None,
         status=DataStatus.validated,
         is_flagged_duplicate=False,
     )

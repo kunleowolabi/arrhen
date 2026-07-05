@@ -267,7 +267,7 @@ export default function DataManagement() {
 
   const loadPending = (orgId) =>
     fetch(
-      `http://localhost:8000/api/v1/calculations/pending?organisation_id=${orgId}`
+      `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/calculations/pending?organisation_id=${orgId}`
     )
       .then((r) => r.json())
       .then(setPending)
@@ -316,7 +316,7 @@ export default function DataManagement() {
 
     try {
       const res = await fetch(
-        'http://localhost:8000/api/v1/calculations/run',
+        '${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/calculations/run',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
