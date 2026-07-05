@@ -1,129 +1,65 @@
-# Arrhen — Carbon Emission Tracking Platform
+# Arrhen
 
-A sustainability data management platform for tracking, calculating, and reporting greenhouse gas emissions. Built on the GHG Protocol Corporate Standard.
+Open-source carbon emission tracking platform built for organisations in emerging markets.
 
----
-
-## What It Does
-
-Arrhen helps organisations measure and manage their carbon footprint across all three emission scopes:
-
-- **Data ingestion** — upload activity data via CSV or connect field data collection tools (ODK, KoboToolbox)
-- **Emission calculations** — automatic conversion of activity data to CO₂e using versioned emission factor libraries
-- **Dashboard** — real-time emission summaries, scope breakdowns, site comparisons, and target tracking
-- **Geospatial mapping** — emission intensity visualised across sites on an interactive map
-- **Reporting** — PDF emission reports, JSON inventory exports, and full audit trail downloads
+[![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.14+-green.svg)](https://python.org)
+[![DOI](https://joss.theoj.org/papers/placeholder/status.svg)](https://joss.theoj.org)
 
 ---
 
-## Tech Stack
+## Statement of Need
 
-| Layer | Technology |
-|---|---|
-| Database | Supabase (PostgreSQL + PostGIS) |
-| Backend | Python 3.14, FastAPI, SQLAlchemy 2.0 |
-| Migrations | Alembic |
-| Frontend | React, Vite, Tailwind CSS v4 |
-| Charts | Recharts |
-| Maps | Leaflet.js + react-leaflet |
-| PDF Reports | ReportLab |
-| Data pipelines | Pandas |
+Corporate carbon accounting in Africa is primarily outsourced to sustainability consultants who publish an annual report on their client's behalf. This creates data exposure risk, introduces inaccuracy through secondhand data collection, and leaves organisations with no internal capacity to engage with their own emissions data. At the same time, enterprise carbon accounting platforms (Watershed, Persefoni, IBM Envizi) are priced between $50,000–$200,000 per year — inaccessible to the SMEs and mid-market companies that constitute the majority of emitters in emerging economies.
+
+This gap is sharpening under new regulation. Nigeria's Climate Change Act 2021 mandates GHG reporting for qualifying organisations by 2027 and establishes the National Council on Climate Change (NCCC) as regulator of a nascent Emissions Trading Scheme. South Africa's mandatory carbon budgeting system began its first commitment period in January 2026. Across the continent, the African Carbon Markets Initiative (ACMI) targets 300 million carbon credits annually by 2030. Companies without traceable, methodology-transparent emission records are excluded from these markets.
+
+Arrhen addresses this by providing a free, self-hosted, GHG Protocol-aligned carbon accounting platform that organisations can operate internally — with no per-seat pricing, no data exposure to third parties, and full audit trail transparency. Its core differentiator is a native integration with ODK/KoboToolbox, the standard mobile data collection framework used by WHO, USAID, and the Red Cross for field data collection in low-connectivity environments. This integration allows field technicians to log daily operational activity directly into structured forms that feed automatically into the emission calculation engine — eliminating the manual data extraction step that makes consultant-led accounting inaccurate and expensive.
 
 ---
 
-## Project Structure
+## Functionality
 
-```
-arrhen/
-├── backend/
-│   ├── api/                    # FastAPI route handlers
-│   ├── core/
-│   │   ├── calculations/       # Emission factor engine, GWP conversion
-│   │   ├── pipelines/          # CSV + ODK data ingestion
-│   │   ├── materiality/        # Materiality screening
-│   │   └── reporting/          # PDF + JSON report generation
-│   ├── models/                 # SQLAlchemy models
-│   ├── schemas/                # Pydantic request/response schemas
-│   └── db/                     # Database connection + Alembic migrations
-├── data/
-│   ├── emission_factors/       # Factor library reference data
-│   ├── sample_data/            # Sample CSV templates
-│   └── seed.py                 # Database seed script
-├── docs/                       # Methodology, architecture, data dictionary
-├── frontend/                   # React application
-├── tests/                      # Test suite
-├── .env.example                # Environment variable template
-└── requirements.txt            # Python dependencies
-```
+- **Scope 1, 2, and 3 emission tracking** aligned with the GHG Protocol Corporate Standard
+- **Emission calculation engine** applying DEFRA 2023 and IEA 2022 factors with IPCC AR6 GWP100 values; AR5 also supported
+- **Per-compound GWP resolution** for HFCs and PFCs (HFC-134a, HFC-410A, etc.)
+- **ODK/KoboToolbox connector** — field form submissions split into validated activity records automatically
+- **CSV ingestion pipeline** with duplicate detection, quarantine, and full data lineage
+- **Multi-site, multi-scope dashboard** with target tracking, trend analysis, and geospatial emission intensity mapping
+- **PDF and JSON report generation** with audit trail export suitable for third-party verification
+- **Role-based access control** — admin, analyst, and viewer roles per organisation
+- **Multi-tenant architecture** — multiple organisations on shared infrastructure with row-level data isolation
 
 ---
 
-## Getting Started
+## Installation
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.14+
 - Node.js 18+
-- A Supabase project with PostGIS enabled
+- Supabase project with PostGIS enabled
 
-### 1. Clone the repository
+### Backend
 
 ```bash
-git clone https://github.com/yourusername/arrhen.git
+git clone https://github.com/[AUTHOR]/arrhen.git
 cd arrhen
-```
 
-### 2. Set up the Python environment
-
-```bash
 python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
-```
 
-### 3. Configure environment variables
-
-```bash
 cp .env.example .env
-```
+# Fill in DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_JWT_SECRET
 
-Edit `.env` and fill in:
-
-```
-DATABASE_URL=postgresql://postgres.yourref:password@aws-0-region.pooler.supabase.com:5432/postgres
-SUPABASE_URL=https://yourref.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
-SECRET_KEY=your-secret-key
-DEFAULT_GWP_VERSION=AR6
-```
-
-Generate a secret key:
-
-```bash
-python3 -c "import secrets; print(secrets.token_hex(32))"
-```
-
-### 4. Run database migrations
-
-```bash
 alembic upgrade head
-```
-
-### 5. Seed the database
-
-```bash
 python3 data/seed.py
+
+uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
 
-### 6. Start the backend
-
-```bash
-uvicorn backend.main:app --reload --port 8000
-```
-
-API documentation available at `http://localhost:8000/docs`
-
-### 7. Start the frontend
+### Frontend
 
 ```bash
 cd frontend
@@ -131,43 +67,56 @@ npm install
 npm run dev
 ```
 
-Application available at `http://localhost:5173`
+Application runs at `http://localhost:5173`. API documentation at `http://localhost:8000/docs`.
+
+### Environment Variables
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | Supabase pooler connection string (session mode) |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Supabase anonymous key |
+| `SUPABASE_JWT_SECRET` | JWT secret for token verification |
+| `DEFAULT_GWP_VERSION` | `AR6` or `AR5` |
+| `ALLOWED_ORIGINS` | Comma-separated list of allowed CORS origins |
+| `KOBO_API_TOKEN` | KoboToolbox API token (optional) |
+
+See `.env.example` for the full list.
 
 ---
 
 ## Data Upload
 
-Arrhen accepts activity data via CSV upload. Download the template from the Data Management page or use the format below:
+Activity data is ingested via:
 
-```
-site_code, scope, ghg_category, fuel_or_material, quantity, unit,
-period_year, period_month, scope_2_method, activity_description
-```
-
-After uploading, click **Process Pending Records** on the Data Management page to run calculations.
+1. **CSV upload** — download the template from the Data Management page, populate with activity data, and upload. Run calculations after each upload.
+2. **KoboToolbox integration** — connect field data collection forms; submissions are fetched and split into activity records automatically.
 
 See `docs/data_dictionary.md` for valid field values.
 
 ---
 
-## API Reference
+## Testing
 
-Full interactive API documentation is available at `http://localhost:8000/docs` when the backend is running.
+```bash
+python3 -m pytest tests/ -v
+```
 
-Key endpoint groups:
+Tests cover GWP constant correctness, per-compound HFC/PFC resolution, CSV validation and injection protection, and emission calculation accuracy against manually verified reference values.
 
-| Prefix | Purpose |
+---
+
+## Documentation
+
+| Document | Contents |
 |---|---|
-| `/api/v1/organisations` | Organisation and site management |
-| `/api/v1/activity` | Activity record upload and retrieval |
-| `/api/v1/calculations` | Trigger calculations, view results |
-| `/api/v1/factors` | Emission factor library |
-| `/api/v1/dashboard` | Aggregated data for frontend |
-| `/api/v1/geo` | GeoJSON endpoints for map |
-| `/api/v1/reports` | PDF and JSON report generation |
+| [`docs/methodology.md`](docs/methodology.md) | GHG Protocol alignment, factor sources, GWP values, scope coverage, limitations |
+| [`docs/architecture.md`](docs/architecture.md) | System design, data flow, API structure, extension points |
+| [`docs/data_dictionary.md`](docs/data_dictionary.md) | Every table, field, valid values, units, relationships |
 
 ---
 
 ## Licence
 
-Licensed under the Business Source Licence 1.1. Free for internal, research, and non-commercial use. See `COMMERCIAL.md` for commercial licensing.
+Source-available under the [Business Source Licence 1.1](LICENSE) (BUSL-1.1). Free for internal, research, educational, and non-commercial use. Converts to Apache 2.0 on 20 May 2029. See [COMMERCIAL.md](COMMERCIAL.md) for commercial licensing.
+
