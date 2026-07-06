@@ -2,6 +2,7 @@ services:
   - type: web
     name: arrhen-backend
     env: python
+    pythonVersion: "3.11.9"
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -19,3 +20,13 @@ services:
         value: AR6
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: KOBO_API_TOKEN
+        sync: false
+      - key: KOBO_BASE_URL
+        value: https://kf.kobotoolbox.org
+      - key: KOBO_FORM_1_UID
+        value: aNogXjHodg7FY2J4KX5XD8
+      - key: KOBO_FORM_2_UID
+        value: avMLnVLKT367QmnkUHhADQ
+      - key: KOBO_FORM_3_UID
+        value: at3WKHFVYgx6LR22yJySFz
