@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { getOrganisations, getLineage, uploadCSV } from '../api/client'
+import { DataManagementSkeleton } from '../components/Skeleton'
 
 function UploadZone({ onUpload, uploading }) {
   const inputRef = useRef(null)
@@ -363,9 +364,7 @@ export default function DataManagement() {
     URL.revokeObjectURL(url)
   }
 
-  if (loading) return (
-    <div style={{ color: 'var(--text-muted)' }}>Loading...</div>
-  )
+  if (loading) return <DataManagementSkeleton />
 
   return (
     <div>

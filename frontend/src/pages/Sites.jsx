@@ -10,6 +10,7 @@ import {
   getSiteBreakdown,
   getEmissionIntensity,
 } from '../api/client'
+import { SitesSkeleton } from '../components/Skeleton'
 
 // CartoDB Dark Matter GL style — free, no API key
 // Dark Matter No Labels — clean dark basemap, no text clutter at any zoom level
@@ -134,7 +135,7 @@ export default function Sites() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <div style={{ color: 'var(--text-muted)' }}>Loading...</div>
+  if (loading) return <SitesSkeleton />
   if (error) return <div style={{ color: 'var(--status-bad)' }}>Error: {error}</div>
 
   const avg = sites.length > 0
