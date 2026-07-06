@@ -17,13 +17,33 @@ export default function Layout() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-page)' }}>
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--bg-page)',
+      display: 'flex',
+    }}>
+      {/* Sidebar — on grey background, outside the card */}
       <Sidebar orgName={orgName} />
-      <main className="main-content">
-        <div className="content-sheet">
+
+      {/* Content area — white card, right of sidebar */}
+      <div style={{
+        flex: 1,
+        marginLeft: '220px',
+        padding: '16px 16px 16px 0',
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        <div style={{
+          flex: 1,
+          background: 'var(--bg-surface)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '36px 40px',
+          minHeight: 'calc(100vh - 32px)',
+        }}>
           <Outlet />
         </div>
-      </main>
+      </div>
     </div>
   )
 }

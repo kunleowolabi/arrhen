@@ -68,7 +68,7 @@ export default function Login() {
         {/* Logo */}
         <div style={{ position: 'relative', zIndex: 1 }}>
           <img
-            src="/src/assets/logo-full.svg"
+            src="/logo-full.svg"
             alt="Arrhen"
             style={{
               width: '140px',

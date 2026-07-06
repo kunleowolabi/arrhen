@@ -13,9 +13,11 @@
     "@supabase/supabase-js": "^2.110.0",
     "axios": "^1.16.1",
     "leaflet": "^1.9.4",
+    "maplibre-gl": "^5.24.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-leaflet": "^5.0.0",
+    "react-map-gl": "^8.1.1",
     "react-router-dom": "^7.15.1",
     "recharts": "^3.8.1"
   },

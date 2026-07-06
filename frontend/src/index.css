@@ -4,11 +4,11 @@
 /* ── Design tokens ───────────────────────────────────────── */
 :root {
   /* Surfaces */
-  --bg-page:      #EFEFEF;
+  --bg-page:      #EBEBEB;
   --bg-sidebar:   #F5F5F5;
   --bg-surface:   #FFFFFF;
-  --bg-card:      #FAFAFA;
-  --bg-elevated:  #F2F2F2;
+  --bg-card:      #F5F5F5;
+  --bg-elevated:  #EEEEEE;
 
   /* Text */
   --text-primary:   #0A0A0A;
@@ -224,15 +224,11 @@ tr:hover td { background: var(--bg-elevated); }
 
 /* ── Mobile ──────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .main-content {
-    margin-left: 0 !important;
-    padding: 12px !important;
+  aside { display: none !important; }
+  nav.mobile-nav { display: flex !important; }
+  main {
+    padding: 20px !important;
     padding-bottom: 80px !important;
-  }
-  .content-sheet {
-    padding: 20px;
-    border-radius: var(--radius-md);
-    min-height: auto;
   }
   h1 { font-size: 18px; }
 }
