@@ -5,6 +5,7 @@ import {
   ResponsiveContainer, Legend,
 } from 'recharts'
 import { getOrganisations, getTrends } from '../api/client'
+import { TrendsSkeleton } from '../components/Skeleton'
 
 const MONTH_NAMES = [
   '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -59,9 +60,7 @@ export default function Trends() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return (
-    <div style={{ color: 'var(--text-muted)' }}>Loading...</div>
-  )
+  if (loading) return <TrendsSkeleton />
   if (error) return (
     <div style={{ color: 'var(--status-bad)' }}>Error: {error}</div>
   )
@@ -202,9 +201,9 @@ export default function Trends() {
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={chartData} margin={{ right: 16 }}>
             <CartesianGrid
-              strokeDasharray="3 3"
+              strokeDasharray="1 6"
               vertical={false}
-              stroke="var(--border)"
+              stroke="rgba(0,0,0,0.07)"
             />
             <XAxis
               dataKey="label"
@@ -226,7 +225,7 @@ export default function Trends() {
               type="monotone"
               dataKey="total_tco2e"
               stroke="var(--text-primary)"
-              strokeWidth={2}
+              strokeWidth={1.5}
               dot={{ r: 4, fill: 'var(--text-primary)' }}
               activeDot={{ r: 6 }}
             />
@@ -254,9 +253,9 @@ export default function Trends() {
               </linearGradient>
             </defs>
             <CartesianGrid
-              strokeDasharray="3 3"
+              strokeDasharray="1 6"
               vertical={false}
-              stroke="var(--border)"
+              stroke="rgba(0,0,0,0.07)"
             />
             <XAxis
               dataKey="label"
@@ -288,7 +287,7 @@ export default function Trends() {
                 type="monotone"
                 dataKey="scope_1_tco2e"
                 stroke={SCOPE_COLOURS.scope_1}
-                strokeWidth={2}
+                strokeWidth={1.5}
                 fill="url(#s1)"
               />
             )}
@@ -297,7 +296,7 @@ export default function Trends() {
                 type="monotone"
                 dataKey="scope_2_tco2e"
                 stroke={SCOPE_COLOURS.scope_2}
-                strokeWidth={2}
+                strokeWidth={1.5}
                 fill="url(#s2)"
               />
             )}
@@ -306,7 +305,7 @@ export default function Trends() {
                 type="monotone"
                 dataKey="scope_3_tco2e"
                 stroke={SCOPE_COLOURS.scope_3}
-                strokeWidth={2}
+                strokeWidth={1.5}
                 fill="url(#s3)"
               />
             )}

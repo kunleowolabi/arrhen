@@ -7,6 +7,7 @@ import {
   getOrganisations,
   getDashboardOverview,
 } from '../api/client'
+import { OverviewSkeleton } from '../components/Skeleton'
 
 const SCOPE_COLOURS = ['#0A0A0A', '#525252', '#A3A3A3']
 
@@ -352,11 +353,7 @@ export default function Overview() {
       .finally(() => setLoading(false))
   }, [year])
 
-  if (loading) return (
-    <div style={{ color: 'var(--text-muted)', padding: '16px' }}>
-      Loading...
-    </div>
-  )
+  if (loading) return <OverviewSkeleton />
   if (error) return (
     <div style={{ color: 'var(--status-bad)', padding: '16px' }}>
       Error: {error}
@@ -522,7 +519,7 @@ export default function Overview() {
                 <th>#</th>
                 <th>Site</th>
                 <th>Region</th>
-                <th style={{ textAlign: 'right' }}>tCO₂e</th>
+                <th>tCO₂e</th>
               </tr>
             </thead>
             <tbody>
@@ -539,7 +536,6 @@ export default function Overview() {
                   </td>
                   <td>{site.region}</td>
                   <td style={{
-                    textAlign: 'right',
                     fontWeight: '500',
                     color: 'var(--text-primary)',
                   }}>
@@ -559,12 +555,12 @@ export default function Overview() {
               data={sourceData}
               layout="vertical"
               margin={{ left: 0, right: 16, top: 4, bottom: 4 }}
-              barSize={10}
+              barSize={8}
             >
               <CartesianGrid
-                strokeDasharray="3 3"
+                strokeDasharray="1 6"
                 horizontal={false}
-                stroke="var(--border)"
+                stroke="rgba(0,0,0,0.07)"
               />
               <XAxis
                 type="number"
@@ -587,7 +583,7 @@ export default function Overview() {
               <Bar
                 dataKey="value"
                 fill="var(--text-primary)"
-                radius={[0, 3, 3, 0]}
+                radius={[0, 4, 4, 0]}
               />
             </BarChart>
           </ResponsiveContainer>

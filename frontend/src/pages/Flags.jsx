@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getOrganisations, getActivityRecords } from '../api/client'
+import { FlagsSkeleton } from '../components/Skeleton'
 
 const TABS = [
   { value: 'quarantined', label: 'Quarantined' },
@@ -74,9 +75,7 @@ export default function Flags() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return (
-    <div style={{ color: 'var(--text-muted)' }}>Loading...</div>
-  )
+  if (loading) return <FlagsSkeleton />
   if (error) return (
     <div style={{ color: 'var(--status-bad)' }}>Error: {error}</div>
   )
@@ -211,7 +210,7 @@ export default function Flags() {
                   <th>Scope</th>
                   <th>Category</th>
                   <th>Fuel / Material</th>
-                  <th style={{ textAlign: 'right' }}>Quantity</th>
+                  <th>Quantity</th>
                   <th>Unit</th>
                   <th>Period</th>
                   <th>Created</th>
@@ -265,7 +264,6 @@ export default function Flags() {
                       </td>
 
                       <td style={{
-                        textAlign: 'right',
                         color: 'var(--text-secondary)',
                       }}>
                         {record.quantity.toLocaleString()}

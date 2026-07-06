@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import Map, { Marker, Popup, NavigationControl } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
@@ -12,14 +12,94 @@ import {
 } from '../api/client'
 import { SitesSkeleton } from '../components/Skeleton'
 
-// CartoDB Dark Matter GL style — free, no API key
-// Dark Matter No Labels — clean dark basemap, no text clutter at any zoom level
-const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json'
+// OpenFreeMap dark — free, no API key, rich geographic texture
+const MAP_STYLE = 'https://tiles.openfreemap.org/styles/dark'
 
-const INTENSITY_COLOUR = (score) => {
-  if (score >= 0.66) return '#FFFFFF'
-  if (score >= 0.33) return '#BBBBBB'
-  return '#888888'
+function SiteMarker({ feature, isSelected, onSelect, onPopup }) {
+  const [hovered, setHovered] = useState(false)
+  const props = feature.properties
+  const co2e = props.total_co2e_tonnes
+    ? parseFloat(props.total_co2e_tonnes).toFixed(1)
+    : '—'
+
+  return (
+    <div
+      onClick={() => onSelect()}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'relative',
+        width: 12,
+        height: 12,
+        cursor: 'pointer',
+      }}
+    >
+      {/* Pulsing ring */}
+      <div style={{
+        position: 'absolute',
+        width: 32,
+        height: 32,
+        borderRadius: '50%',
+        background: 'rgba(255,255,255,0.18)',
+        top: '50%',
+        left: '50%',
+        animation: 'pulse-ring 2.4s ease-out infinite',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Centre dot */}
+      <div style={{
+        width: 12,
+        height: 12,
+        borderRadius: '50%',
+        background: isSelected ? '#FFFFFF' : 'rgba(255,255,255,0.9)',
+        border: `2px solid rgba(255,255,255,${isSelected ? 0.9 : 0.4})`,
+        boxShadow: isSelected
+          ? '0 0 0 4px rgba(255,255,255,0.15), 0 2px 8px rgba(0,0,0,0.6)'
+          : '0 1px 4px rgba(0,0,0,0.5)',
+        position: 'relative',
+        zIndex: 2,
+        transition: 'all 0.15s ease',
+      }} />
+
+      {/* Hover label */}
+      {hovered && !isSelected && (
+        <div style={{
+          position: 'absolute',
+          bottom: '22px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(8,8,8,0.88)',
+          backdropFilter: 'blur(6px)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: '7px',
+          padding: '6px 10px',
+          zIndex: 100,
+          pointerEvents: 'none',
+          whiteSpace: 'nowrap',
+          fontFamily: "'Raleway', sans-serif",
+        }}>
+          <div style={{
+            fontSize: '9px',
+            fontWeight: '600',
+            color: 'rgba(255,255,255,0.5)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            marginBottom: '2px',
+          }}>
+            {props.site_code}
+          </div>
+          <div style={{
+            fontSize: '12px',
+            fontWeight: '700',
+            color: '#FFFFFF',
+          }}>
+            {co2e} tCO₂e
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function AddSiteModal({ orgId, onClose, onSaved }) {
@@ -35,8 +115,7 @@ function AddSiteModal({ orgId, onClose, onSaved }) {
 
   const handleSubmit = async () => {
     if (!form.name || !form.country) { setError('Name and country are required.'); return }
-    setSaving(true)
-    setError(null)
+    setSaving(true); setError(null)
     try {
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
       const res = await fetch(`${API_BASE}/api/v1/organisations/${orgId}/sites`, {
@@ -111,7 +190,7 @@ export default function Sites() {
   const [viewState, setViewState] = useState({
     longitude: 8.6753,
     latitude: 9.0820,
-    zoom: 5.5,
+    zoom: 5.2,
   })
   const YEAR = 2024
 
@@ -156,7 +235,6 @@ export default function Sites() {
   const regionChartData = Object.entries(regionMap)
     .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(3)) }))
     .sort((a, b) => b.value - a.value)
-
   const regionAvg = regionChartData.length > 0
     ? regionChartData.reduce((sum, r) => sum + r.value, 0) / regionChartData.length
     : 0
@@ -171,7 +249,7 @@ export default function Sites() {
 
   return (
     <div>
-      {/* ── Header ─────────────────────────────────── */}
+      {/* ── Header ───────────────────────────────────── */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -191,7 +269,7 @@ export default function Sites() {
         </button>
       </div>
 
-      {/* ── Map — MapLibre GL + CartoDB Dark Matter ─── */}
+      {/* ── Map ──────────────────────────────────────── */}
       <div style={{
         borderRadius: 'var(--radius-md)',
         overflow: 'hidden',
@@ -205,13 +283,18 @@ export default function Sites() {
             mapStyle={MAP_STYLE}
             style={{ width: '100%', height: '100%' }}
           >
-            <NavigationControl position="top-right" />
+            <NavigationControl
+              position="top-right"
+              style={{
+                marginTop: '12px',
+                marginRight: '12px',
+              }}
+            />
 
             {geoData.map((feature) => {
               const [lng, lat] = feature.geometry.coordinates
               const props = feature.properties
               const isSelected = selectedSite === props.site_code
-              const colour = INTENSITY_COLOUR(props.intensity_score)
 
               return (
                 <Marker
@@ -219,23 +302,16 @@ export default function Sites() {
                   longitude={lng}
                   latitude={lat}
                   anchor="center"
-                  onClick={() => {
-                    setSelectedSite(isSelected ? null : props.site_code)
-                    setPopupInfo(isSelected ? null : { lng, lat, props })
-                  }}
                 >
-                  <div style={{
-                    width: isSelected ? 18 : 12,
-                    height: isSelected ? 18 : 12,
-                    borderRadius: '50%',
-                    background: colour,
-                    border: `2px solid rgba(255,255,255,${isSelected ? 0.9 : 0.4})`,
-                    boxShadow: isSelected
-                      ? `0 0 0 4px rgba(255,255,255,0.15)`
-                      : '0 1px 4px rgba(0,0,0,0.5)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }} />
+                  <SiteMarker
+                    feature={feature}
+                    isSelected={isSelected}
+                    onSelect={() => {
+                      const next = isSelected ? null : props.site_code
+                      setSelectedSite(next)
+                      setPopupInfo(next ? { lng, lat, props } : null)
+                    }}
+                  />
                 </Marker>
               )
             })}
@@ -247,21 +323,21 @@ export default function Sites() {
                 anchor="bottom"
                 onClose={() => { setPopupInfo(null); setSelectedSite(null) }}
                 closeButton={false}
-                offset={12}
+                offset={20}
               >
                 <div style={{
                   fontSize: '13px',
                   minWidth: '160px',
                   fontFamily: "'Raleway', sans-serif",
-                  padding: '4px',
+                  padding: '4px 2px',
                 }}>
-                  <div style={{ fontWeight: '700', marginBottom: '3px' }}>
+                  <div style={{ fontWeight: '700', marginBottom: '2px' }}>
                     {popupInfo.props.name}
                   </div>
-                  <div style={{ color: '#888', fontSize: '11px', marginBottom: '8px' }}>
+                  <div style={{ color: '#888', fontSize: '11px', marginBottom: '10px' }}>
                     {popupInfo.props.site_code} · {popupInfo.props.region}
                   </div>
-                  <div style={{ fontWeight: '700', fontSize: '15px' }}>
+                  <div style={{ fontWeight: '700', fontSize: '16px' }}>
                     {popupInfo.props.total_co2e_tonnes} tCO₂e
                   </div>
                   <div style={{ color: '#888', fontSize: '11px', marginTop: '2px' }}>
@@ -279,44 +355,41 @@ export default function Sites() {
           background: 'var(--bg-surface)',
           borderTop: '1px solid var(--border)',
           display: 'flex',
-          gap: '20px',
+          gap: '16px',
           alignItems: 'center',
           flexWrap: 'wrap',
         }}>
-          <span style={{
-            fontSize: '10px',
-            color: 'var(--text-muted)',
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-          }}>
-            Emission intensity
-          </span>
-          {[
-            { label: 'High', colour: '#FFFFFF' },
-            { label: 'Medium', colour: '#BBBBBB' },
-            { label: 'Low', colour: '#888888' },
-          ].map((item) => (
-            <div key={item.label} style={{
-              display: 'flex', alignItems: 'center',
-              gap: '6px', fontSize: '12px',
-              color: 'var(--text-secondary)',
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{
+              position: 'relative',
+              width: 12, height: 12,
             }}>
               <div style={{
-                width: '10px', height: '10px',
+                position: 'absolute',
+                inset: 0,
                 borderRadius: '50%',
-                background: item.colour,
-                border: '1px solid var(--border)',
+                background: 'rgba(0,0,0,0.15)',
+                transform: 'scale(2.2)',
               }} />
-              {item.label}
+              <div style={{
+                width: 12, height: 12,
+                borderRadius: '50%',
+                background: '#0A0A0A',
+                border: '2px solid rgba(0,0,0,0.3)',
+                position: 'relative',
+              }} />
             </div>
-          ))}
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Emission site · hover for data · click for detail
+            </span>
+          </div>
           <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>
-            Scroll to zoom · Click marker for details
+            Scroll to zoom
           </span>
         </div>
       </div>
 
-      {/* ── Charts ─────────────────────────────────── */}
+      {/* ── Charts ───────────────────────────────────── */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
@@ -332,12 +405,12 @@ export default function Sites() {
           </div>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={siteChartData} margin={{ left: 0, right: 8, top: 4, bottom: 4 }} barSize={16}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+              <CartesianGrid strokeDasharray="1 6" vertical={false} stroke="rgba(0,0,0,0.07)" />
               <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'Raleway' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'Raleway' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}t`} />
               <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`${v.toFixed(2)} tCO₂e`, 'Emissions']} />
               <ReferenceLine y={avg} stroke="var(--text-muted)" strokeDasharray="4 4" label={{ value: 'Avg', position: 'insideTopRight', fontSize: 9, fill: 'var(--text-muted)' }} />
-              <Bar dataKey="value" fill="var(--black)" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="value" fill="var(--black)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -351,18 +424,18 @@ export default function Sites() {
           </div>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={regionChartData} layout="vertical" margin={{ left: 0, right: 8, top: 4, bottom: 4 }} barSize={14}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
+              <CartesianGrid strokeDasharray="1 6" horizontal={false} stroke="rgba(0,0,0,0.07)" />
               <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'Raleway' }} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'Raleway' }} axisLine={false} tickLine={false} width={80} />
               <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`${v.toFixed(2)} tCO₂e`, 'Emissions']} />
               <ReferenceLine x={regionAvg} stroke="var(--text-muted)" strokeDasharray="4 4" />
-              <Bar dataKey="value" fill="var(--black)" radius={[0, 3, 3, 0]} />
+              <Bar dataKey="value" fill="var(--black)" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* ── Sites table ────────────────────────────── */}
+      {/* ── Sites table ───────────────────────────────── */}
       <div className="card" style={{ padding: '24px' }}>
         <h2 style={{ marginBottom: '18px' }}>All Sites</h2>
         <div style={{ overflowX: 'auto' }}>
@@ -371,8 +444,8 @@ export default function Sites() {
               <tr>
                 <th>Rank</th><th>Site Code</th><th>Name</th>
                 <th>Region</th>
-                <th style={{ textAlign: 'right' }}>tCO₂e</th>
-                <th style={{ textAlign: 'right' }}>Records</th>
+                <th>tCO₂e</th>
+                <th>Records</th>
               </tr>
             </thead>
             <tbody>
@@ -395,10 +468,12 @@ export default function Sites() {
                     <td><span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{site.site_code}</span></td>
                     <td style={{ color: 'var(--text-secondary)' }}>{site.site_name}</td>
                     <td style={{ color: 'var(--text-secondary)' }}>{site.region || '—'}</td>
-                    <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--text-primary)' }}>
+                    <td style={{
+ fontWeight: '600', color: 'var(--text-primary)' }}>
                       {site.total_co2e_tonnes.toLocaleString()}
                     </td>
-                    <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{site.record_count}</td>
+                    <td style={{
+ color: 'var(--text-muted)' }}>{site.record_count}</td>
                   </tr>
                 ))
               )}

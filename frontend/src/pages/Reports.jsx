@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { ReportsSkeleton } from '../components/Skeleton'
 import { getOrganisations, downloadJsonReport } from '../api/client'
 
 const REPORT_TYPES = [
@@ -77,6 +78,7 @@ function MethodologyNote() {
 export default function Reports() {
   const [org, setOrg] = useState(null)
   const [selectedYear, setSelectedYear] = useState(2024)
+  const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(null)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
@@ -87,6 +89,7 @@ export default function Reports() {
         if (orgs && orgs.length > 0) setOrg(orgs[0])
       })
       .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
   const handleGenerate = async (reportType) => {
@@ -147,6 +150,8 @@ export default function Reports() {
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  if (loading) return <ReportsSkeleton />
 
   return (
     <div>

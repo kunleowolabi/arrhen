@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getFactors } from '../api/client'
+import { FactorsSkeleton } from '../components/Skeleton'
 
 const ACTIVITY_TYPES = [
   'All',
@@ -54,9 +55,7 @@ export default function Factors() {
     setFiltered(result)
   }, [activityFilter, search, factors])
 
-  if (loading) return (
-    <div style={{ color: 'var(--text-muted)' }}>Loading...</div>
-  )
+  if (loading) return <FactorsSkeleton />
   if (error) return (
     <div style={{ color: 'var(--status-bad)' }}>Error: {error}</div>
   )
@@ -150,9 +149,9 @@ export default function Factors() {
                 <th>Activity Type</th>
                 <th>Fuel / Material</th>
                 <th>Region</th>
-                <th style={{ textAlign: 'right' }}>CO₂</th>
-                <th style={{ textAlign: 'right' }}>CH₄</th>
-                <th style={{ textAlign: 'right' }}>N₂O</th>
+                <th>CO₂</th>
+                <th>CH₄</th>
+                <th>N₂O</th>
                 <th>Unit</th>
                 <th>Source</th>
                 <th>Version</th>
@@ -198,22 +197,16 @@ export default function Factors() {
                         {factor.region || 'Global'}
                       </td>
                       <td style={{
-                        textAlign: 'right',
-                        fontFamily: 'monospace',
                         fontSize: '12px',
                       }}>
                         {factor.co2_factor.toFixed(5)}
                       </td>
                       <td style={{
-                        textAlign: 'right',
-                        fontFamily: 'monospace',
                         fontSize: '12px',
                       }}>
                         {factor.ch4_factor.toFixed(5)}
                       </td>
                       <td style={{
-                        textAlign: 'right',
-                        fontFamily: 'monospace',
                         fontSize: '12px',
                       }}>
                         {factor.n2o_factor.toFixed(5)}
@@ -291,7 +284,6 @@ export default function Factors() {
                                 </div>
                                 <div style={{
                                   fontSize: '13px',
-                                  fontFamily: 'monospace',
                                   color: 'var(--text-primary)',
                                 }}>
                                   {item.value}

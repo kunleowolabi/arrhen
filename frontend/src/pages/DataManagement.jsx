@@ -562,9 +562,9 @@ export default function DataManagement() {
                   <th>File / Form</th>
                   <th>Uploaded By</th>
                   <th>Date</th>
-                  <th style={{ textAlign: 'right' }}>Total</th>
-                  <th style={{ textAlign: 'right' }}>Valid</th>
-                  <th style={{ textAlign: 'right' }}>Quarantined</th>
+                  <th>Total</th>
+                  <th>Valid</th>
+                  <th>Quarantined</th>
                   <th>Notes</th>
                 </tr>
               </thead>
@@ -603,17 +603,15 @@ export default function DataManagement() {
                         }
                       )}
                     </td>
-                    <td style={{ textAlign: 'right' }}>
+                    <td>
                       {item.record_count}
                     </td>
                     <td style={{
-                      textAlign: 'right',
                       color: 'var(--text-secondary)',
                     }}>
                       {item.valid_count}
                     </td>
                     <td style={{
-                      textAlign: 'right',
                       color: item.quarantine_count > 0
                         ? 'var(--status-warn)'
                         : 'var(--text-muted)',
