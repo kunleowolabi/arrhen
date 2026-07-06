@@ -17,18 +17,12 @@ export default function Layout() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-page)' }}>
       <Sidebar orgName={orgName} />
-      <main
-        style={{
-          flex: 1,
-          marginLeft: '220px',
-          padding: '32px',
-          minHeight: '100vh',
-        }}
-        className="main-content"
-      >
-        <Outlet />
+      <main className="main-content">
+        <div className="content-sheet">
+          <Outlet />
+        </div>
       </main>
     </div>
   )

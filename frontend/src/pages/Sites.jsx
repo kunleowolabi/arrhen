@@ -11,10 +11,11 @@ import {
   getEmissionIntensity,
 } from '../api/client'
 
+// Marker colours for dark map
 const INTENSITY_COLOUR = (score) => {
-  if (score >= 0.66) return '#0A0A0A'
-  if (score >= 0.33) return '#525252'
-  return '#A3A3A3'
+  if (score >= 0.66) return '#FFFFFF'
+  if (score >= 0.33) return '#AAAAAA'
+  return '#666666'
 }
 
 function AddSiteModal({ orgId, onClose, onSaved }) {
@@ -38,17 +39,17 @@ function AddSiteModal({ orgId, onClose, onSaved }) {
     setSaving(true)
     setError(null)
     try {
-      const payload = {
-        ...form,
-        latitude: form.latitude ? parseFloat(form.latitude) : null,
-        longitude: form.longitude ? parseFloat(form.longitude) : null,
-      }
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/organisations/${orgId}/sites`,
+        `${API_BASE}/api/v1/organisations/${orgId}/sites`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            ...form,
+            latitude: form.latitude ? parseFloat(form.latitude) : null,
+            longitude: form.longitude ? parseFloat(form.longitude) : null,
+          }),
         }
       )
       if (!res.ok) {
@@ -77,7 +78,7 @@ function AddSiteModal({ orgId, onClose, onSaved }) {
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      background: 'rgba(0,0,0,0.3)',
+      background: 'rgba(0,0,0,0.4)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       zIndex: 1000,
     }}>
@@ -85,64 +86,39 @@ function AddSiteModal({ orgId, onClose, onSaved }) {
         width: '100%', maxWidth: '480px',
         maxHeight: '90vh', overflowY: 'auto',
         padding: '32px',
+        background: 'var(--bg-surface)',
       }}>
         <div style={{
           display: 'flex', justifyContent: 'space-between',
           alignItems: 'center', marginBottom: '28px',
         }}>
           <h2>Add Site</h2>
-          <button
-            className="btn"
-            style={{ padding: '4px 12px' }}
-            onClick={onClose}
-          >
-            ✕
-          </button>
+          <button className="btn" style={{ padding: '4px 12px' }} onClick={onClose}>✕</button>
         </div>
 
         {fields.map((f) => (
           <div key={f.name} style={{ marginBottom: '16px' }}>
             <label style={{
               display: 'block',
-              fontSize: '11px',
-              fontWeight: '500',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              color: 'var(--text-muted)',
-              marginBottom: '6px',
+              fontSize: '11px', fontWeight: '600',
+              textTransform: 'uppercase', letterSpacing: '0.05em',
+              color: 'var(--text-muted)', marginBottom: '6px',
             }}>
               {f.label}{f.required && ' *'}
             </label>
-            <input
-              name={f.name}
-              value={form[f.name]}
-              onChange={handleChange}
-              placeholder={f.label}
-            />
+            <input name={f.name} value={form[f.name]} onChange={handleChange} placeholder={f.label} />
           </div>
         ))}
 
         {error && (
-          <div style={{
-            fontSize: '12px',
-            color: 'var(--status-bad)',
-            marginBottom: '16px',
-          }}>
+          <div style={{ fontSize: '12px', color: 'var(--status-bad)', marginBottom: '16px' }}>
             {error}
           </div>
         )}
 
-        <div style={{
-          display: 'flex', gap: '8px',
-          justifyContent: 'flex-end',
-          marginTop: '8px',
-        }}>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '8px' }}>
           <button className="btn" onClick={onClose}>Cancel</button>
-          <button
-            className="btn btn-primary"
-            onClick={handleSubmit}
-            disabled={saving}
-          >
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
             {saving ? 'Saving...' : 'Add Site'}
           </button>
         </div>
@@ -161,15 +137,14 @@ export default function Sites() {
   const [showModal, setShowModal] = useState(false)
   const YEAR = 2024
 
-  const loadData = (orgId) => {
-    return Promise.all([
+  const loadData = (orgId) =>
+    Promise.all([
       getSiteBreakdown(orgId, YEAR),
       getEmissionIntensity(orgId, YEAR),
     ]).then(([siteData, geoJSON]) => {
       setSites(siteData)
       setGeoData(geoJSON.features || [])
     })
-  }
 
   useEffect(() => {
     getOrganisations()
@@ -182,63 +157,73 @@ export default function Sites() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return (
-    <div style={{ color: 'var(--text-muted)' }}>Loading...</div>
-  )
-  if (error) return (
-    <div style={{ color: 'var(--status-bad)' }}>Error: {error}</div>
-  )
+  if (loading) return <div style={{ color: 'var(--text-muted)' }}>Loading...</div>
+  if (error) return <div style={{ color: 'var(--status-bad)' }}>Error: {error}</div>
 
   const mapCenter = [9.0820, 8.6753]
 
-  // Calculate average for reference line
+  // Portfolio average for reference line
   const avg = sites.length > 0
     ? sites.reduce((sum, s) => sum + s.total_co2e_tonnes, 0) / sites.length
     : 0
 
-  const chartData = sites.map((s) => ({
+  // Site comparison chart data
+  const siteChartData = sites.map((s) => ({
     name: s.site_code,
     value: s.total_co2e_tonnes,
-    region: s.region,
   }))
+
+  // Regional aggregation
+  const regionMap = {}
+  sites.forEach((s) => {
+    const region = s.region || 'Unknown'
+    if (!regionMap[region]) regionMap[region] = 0
+    regionMap[region] += s.total_co2e_tonnes
+  })
+  const regionChartData = Object.entries(regionMap)
+    .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(3)) }))
+    .sort((a, b) => b.value - a.value)
+
+  const regionAvg = regionChartData.length > 0
+    ? regionChartData.reduce((sum, r) => sum + r.value, 0) / regionChartData.length
+    : 0
 
   const tooltipStyle = {
     background: 'var(--bg-surface)',
     border: '1px solid var(--border)',
-    borderRadius: '6px',
+    borderRadius: 'var(--radius-sm)',
     fontSize: '12px',
+    fontFamily: "'Raleway', sans-serif",
   }
 
   return (
     <div>
-      {/* ── Header ───────────────────────────────────────── */}
+      {/* ── Header ─────────────────────────────────────── */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: '32px',
+        marginBottom: '28px',
         flexWrap: 'wrap',
         gap: '16px',
       }}>
         <div>
           <h1>Sites & Branches</h1>
-          <p style={{ color: 'var(--text-muted)', marginTop: '6px' }}>
+          <p style={{ color: 'var(--text-muted)', marginTop: '4px' }}>
             {sites.length} active sites · {YEAR} emissions
           </p>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={() => setShowModal(true)}
-        >
+        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
           + Add Site
         </button>
       </div>
 
-      {/* ── Map ──────────────────────────────────────────── */}
-      <div className="card" style={{
-        padding: 0,
-        marginBottom: '24px',
+      {/* ── Map — CartoDB Dark Matter ───────────────────── */}
+      <div style={{
+        borderRadius: 'var(--radius-md)',
         overflow: 'hidden',
+        border: '1px solid var(--border)',
+        marginBottom: '20px',
       }}>
         <div style={{ height: 'clamp(220px, 40vw, 400px)' }}>
           <MapContainer
@@ -248,8 +233,8 @@ export default function Sites() {
             scrollWheelZoom={true}
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             />
             {geoData.map((feature) => {
               const { coordinates } = feature.geometry
@@ -259,11 +244,11 @@ export default function Sites() {
                 <CircleMarker
                   key={props.id}
                   center={[coordinates[1], coordinates[0]]}
-                  radius={isSelected ? 16 : 11}
+                  radius={isSelected ? 14 : 10}
                   pathOptions={{
                     color: INTENSITY_COLOUR(props.intensity_score),
                     fillColor: INTENSITY_COLOUR(props.intensity_score),
-                    fillOpacity: isSelected ? 1 : 0.75,
+                    fillOpacity: isSelected ? 1 : 0.8,
                     weight: isSelected ? 2 : 1,
                   }}
                   eventHandlers={{
@@ -273,31 +258,22 @@ export default function Sites() {
                   }}
                 >
                   <Popup>
-                    <div style={{ fontSize: '13px', minWidth: '160px' }}>
-                      <div style={{
-                        fontWeight: '600',
-                        marginBottom: '4px',
-                      }}>
+                    <div style={{
+                      fontSize: '13px',
+                      minWidth: '160px',
+                      fontFamily: "'Raleway', sans-serif",
+                    }}>
+                      <div style={{ fontWeight: '600', marginBottom: '4px' }}>
                         {props.name}
                       </div>
-                      <div style={{
-                        color: '#525252',
-                        fontSize: '12px',
-                      }}>
+                      <div style={{ color: '#888', fontSize: '12px' }}>
                         {props.site_code} · {props.region}
                       </div>
-                      <hr style={{
-                        margin: '8px 0',
-                        borderColor: '#E5E5E5',
-                      }} />
+                      <hr style={{ margin: '8px 0', borderColor: '#E4E4E4' }} />
                       <div style={{ fontWeight: '600' }}>
                         {props.total_co2e_tonnes} tCO₂e
                       </div>
-                      <div style={{
-                        color: '#525252',
-                        fontSize: '11px',
-                      }}>
-                        Rank #{props.rank || '—'} ·{' '}
+                      <div style={{ color: '#888', fontSize: '11px' }}>
                         {props.record_count} records
                       </div>
                     </div>
@@ -310,115 +286,107 @@ export default function Sites() {
 
         {/* Map legend */}
         <div style={{
-          padding: '12px 24px',
-          borderTop: '1px solid var(--border)',
+          padding: '10px 20px',
+          background: '#111111',
           display: 'flex',
           gap: '20px',
           alignItems: 'center',
           flexWrap: 'wrap',
         }}>
-          <span style={{
-            fontSize: '11px',
-            color: 'var(--text-muted)',
-          }}>
+          <span style={{ fontSize: '10px', color: '#555', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
             Emission intensity
           </span>
           {[
-            { label: 'High', colour: '#0A0A0A' },
-            { label: 'Medium', colour: '#525252' },
-            { label: 'Low', colour: '#A3A3A3' },
+            { label: 'High', colour: '#FFFFFF' },
+            { label: 'Medium', colour: '#AAAAAA' },
+            { label: 'Low', colour: '#666666' },
           ].map((item) => (
             <div key={item.label} style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '12px',
-              color: 'var(--text-secondary)',
+              display: 'flex', alignItems: 'center',
+              gap: '6px', fontSize: '12px', color: '#888',
             }}>
               <div style={{
-                width: '10px', height: '10px',
+                width: '8px', height: '8px',
                 borderRadius: '50%',
                 background: item.colour,
               }} />
               {item.label}
             </div>
           ))}
-          <span style={{
-            marginLeft: 'auto',
-            fontSize: '11px',
-            color: 'var(--text-muted)',
-          }}>
+          <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#444' }}>
             Scroll to zoom · Click marker for details
           </span>
         </div>
       </div>
 
-      {/* ── Site comparison chart ─────────────────────────── */}
-      <div className="card" style={{
-        padding: '28px',
-        marginBottom: '24px',
-        overflowX: 'auto',
+      {/* ── Charts row ────────────────────────────────── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+        gap: '20px',
+        marginBottom: '20px',
       }}>
-        <div style={{ marginBottom: '20px' }}>
-          <h2>Emission Intensity by Site</h2>
-          <p style={{
-            fontSize: '12px',
-            color: 'var(--text-muted)',
-            marginTop: '4px',
-          }}>
-            Compared against portfolio average of {avg.toFixed(1)} tCO₂e
-          </p>
+        {/* Site comparison */}
+        <div className="card">
+          <div style={{ marginBottom: '16px' }}>
+            <h2>Emissions by Site</h2>
+            <p style={{
+              fontSize: '12px',
+              color: 'var(--text-muted)',
+              marginTop: '2px',
+            }}>
+              Portfolio average {avg.toFixed(1)} tCO₂e
+            </p>
+          </div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart
+              data={siteChartData}
+              margin={{ left: 0, right: 8, top: 4, bottom: 4 }}
+              barSize={16}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'Raleway' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'Raleway' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}t`} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`${v.toFixed(2)} tCO₂e`, 'Emissions']} />
+              <ReferenceLine y={avg} stroke="var(--text-muted)" strokeDasharray="4 4" label={{ value: 'Avg', position: 'insideTopRight', fontSize: 9, fill: 'var(--text-muted)', fontFamily: 'Raleway' }} />
+              <Bar dataKey="value" fill="var(--black)" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart
-            data={chartData}
-            margin={{ left: 0, right: 16, top: 8, bottom: 4 }}
-            barSize={20}
-          >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              vertical={false}
-              stroke="var(--border)"
-            />
-            <XAxis
-              dataKey="name"
-              tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(v) => `${v}t`}
-            />
-            <Tooltip
-              contentStyle={tooltipStyle}
-              formatter={(v) => [`${v.toFixed(2)} tCO₂e`, 'Emissions']}
-            />
-            <ReferenceLine
-              y={avg}
-              stroke="var(--text-muted)"
-              strokeDasharray="4 4"
-              label={{
-                value: 'Avg',
-                position: 'insideTopRight',
-                fontSize: 10,
-                fill: 'var(--text-muted)',
-              }}
-            />
-            <Bar
-              dataKey="value"
-              fill="var(--text-primary)"
-              radius={[3, 3, 0, 0]}
-            />
-          </BarChart>
-        </ResponsiveContainer>
+
+        {/* Regional intensity */}
+        <div className="card">
+          <div style={{ marginBottom: '16px' }}>
+            <h2>Emissions by Region</h2>
+            <p style={{
+              fontSize: '12px',
+              color: 'var(--text-muted)',
+              marginTop: '2px',
+            }}>
+              Regional average {regionAvg.toFixed(1)} tCO₂e
+            </p>
+          </div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart
+              data={regionChartData}
+              layout="vertical"
+              margin={{ left: 0, right: 8, top: 4, bottom: 4 }}
+              barSize={14}
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
+              <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'Raleway' }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'Raleway' }} axisLine={false} tickLine={false} width={80} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`${v.toFixed(2)} tCO₂e`, 'Emissions']} />
+              <ReferenceLine x={regionAvg} stroke="var(--text-muted)" strokeDasharray="4 4" />
+              <Bar dataKey="value" fill="var(--black)" radius={[0, 3, 3, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
-      {/* ── Sites table ───────────────────────────────────── */}
-      <div className="card" style={{ padding: '28px' }}>
-        <h2 style={{ marginBottom: '20px' }}>All Sites</h2>
+      {/* ── Sites table ────────────────────────────────── */}
+      <div className="card" style={{ padding: '24px' }}>
+        <h2 style={{ marginBottom: '18px' }}>All Sites</h2>
         <div style={{ overflowX: 'auto' }}>
           <table>
             <thead>
@@ -434,11 +402,7 @@ export default function Sites() {
             <tbody>
               {sites.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{
-                    textAlign: 'center',
-                    color: 'var(--text-muted)',
-                    padding: '40px',
-                  }}>
+                  <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
                     No emission data for this period.
                   </td>
                 </tr>
@@ -447,41 +411,20 @@ export default function Sites() {
                   <tr
                     key={site.site_code}
                     style={{ cursor: 'pointer' }}
-                    onClick={() => setSelectedSite(
-                      selectedSite === site.site_code
-                        ? null
-                        : site.site_code
-                    )}
+                    onClick={() => setSelectedSite(selectedSite === site.site_code ? null : site.site_code)}
                   >
-                    <td style={{ color: 'var(--text-muted)' }}>
-                      {site.rank}
-                    </td>
+                    <td style={{ color: 'var(--text-muted)' }}>{site.rank}</td>
                     <td>
-                      <span style={{
-                        fontWeight: selectedSite === site.site_code
-                          ? '600' : '500',
-                        color: 'var(--text-primary)',
-                      }}>
+                      <span style={{ fontWeight: selectedSite === site.site_code ? '700' : '600', color: 'var(--text-primary)' }}>
                         {site.site_code}
                       </span>
                     </td>
-                    <td style={{ color: 'var(--text-secondary)' }}>
-                      {site.site_name}
-                    </td>
-                    <td style={{ color: 'var(--text-secondary)' }}>
-                      {site.region || '—'}
-                    </td>
-                    <td style={{
-                      textAlign: 'right',
-                      fontWeight: '500',
-                      color: 'var(--text-primary)',
-                    }}>
+                    <td style={{ color: 'var(--text-secondary)' }}>{site.site_name}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{site.region || '—'}</td>
+                    <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--text-primary)' }}>
                       {site.total_co2e_tonnes.toLocaleString()}
                     </td>
-                    <td style={{
-                      textAlign: 'right',
-                      color: 'var(--text-muted)',
-                    }}>
+                    <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>
                       {site.record_count}
                     </td>
                   </tr>
@@ -492,7 +435,6 @@ export default function Sites() {
         </div>
       </div>
 
-      {/* ── Add site modal ────────────────────────────────── */}
       {showModal && org && (
         <AddSiteModal
           orgId={org.id}
