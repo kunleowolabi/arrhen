@@ -39,6 +39,7 @@ from backend.core.calculations.factor_selector import (
     select_factor,
     FactorNotFoundError,
 )
+from backend.models.enums import Scope2Method
 import uuid
 import structlog
 
@@ -153,11 +154,17 @@ def calculate(
     db: Session,
     activity_record: ActivityRecord,
     gwp_version: GWPVersion,
+    factor_cache: dict | None = None,
 ) -> EmissionRecord:
     """
     Calculates emissions for a single ActivityRecord.
     Resolves factor, delegates to _compute_and_write.
     Does NOT commit — caller owns the transaction.
+
+    factor_cache: optional pre-loaded {(activity_type, fuel, region): factor}
+    index (see calculate_batch). When provided and a matching key exists,
+    skips the DB query in select_factor(). Falls back to select_factor()
+    on a cache miss so single-record calls (factor_cache=None) are unaffected.
     """
 
     # ── Validate quantity ──────────────────────────────────────────────────────
@@ -185,19 +192,41 @@ def calculate(
     else:
         reference_date = date(activity_record.period_year, 1, 1)
 
-    # ── Select emission factor ─────────────────────────────────────────────────
-    try:
-        factor, fallback_used = select_factor(
-            db=db,
-            activity_type=activity_record.ghg_category,
-            fuel_or_material=activity_record.fuel_or_material,
-            region=region,
-            reference_date=reference_date,
+    # ── Select emission factor — cache hit avoids a DB round trip ─────────────
+    factor = None
+    fallback_used = False
+
+    if factor_cache is not None:
+        cache_key = (
+            activity_record.ghg_category,
+            activity_record.fuel_or_material,
+            region,
         )
-    except FactorNotFoundError as e:
-        raise CalculationError(
-            f"Cannot calculate ActivityRecord {activity_record.id}: {e}"
-        )
+        cached = factor_cache.get(cache_key)
+        if cached is not None:
+            factor = cached
+        else:
+            # Region-specific miss — try global-default key before falling
+            # back to a full DB lookup, since the batch cache indexes both
+            global_key = (activity_record.ghg_category, activity_record.fuel_or_material, None)
+            cached = factor_cache.get(global_key)
+            if cached is not None:
+                factor = cached
+                fallback_used = True
+
+    if factor is None:
+        try:
+            factor, fallback_used = select_factor(
+                db=db,
+                activity_type=activity_record.ghg_category,
+                fuel_or_material=activity_record.fuel_or_material,
+                region=region,
+                reference_date=reference_date,
+            )
+        except FactorNotFoundError as e:
+            raise CalculationError(
+                f"Cannot calculate ActivityRecord {activity_record.id}: {e}"
+            )
 
     emission_record = _compute_and_write(
         db=db,
@@ -299,7 +328,21 @@ def calculate_batch(
     # ── Process each record — flush per record, commit once ────────────────────
     for record in records:
         try:
-            calculate(db=db, activity_record=record, gwp_version=gwp_version)
+            # Scope 2 records dispatch on method — market-based needs its own
+            # factor resolution path (no location fallback allowed)
+            if (
+                record.scope == ScopeType.scope_2
+                and record.scope_2_method == Scope2Method.market_based
+            ):
+                from backend.core.calculations.scope2_handler import calculate_scope2
+                calculate_scope2(db=db, activity_record=record, gwp_version=gwp_version)
+            else:
+                calculate(
+                    db=db,
+                    activity_record=record,
+                    gwp_version=gwp_version,
+                    factor_cache=factor_index,
+                )
             results["success"] += 1
         except (CalculationError, Exception) as e:
             results["failed"] += 1
