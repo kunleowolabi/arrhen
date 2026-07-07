@@ -1,44 +1,122 @@
 # Arrhen
 
-Open-source carbon emission tracking platform built for organisations in emerging markets.
+**Carbon emission tracking built for organisations that need to own their data.**
 
-[![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.14+-green.svg)](https://python.org)
-[![DOI](https://joss.theoj.org/papers/placeholder/status.svg)](https://joss.theoj.org)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11+-green.svg)](https://python.org)
+[![JOSS](https://joss.theoj.org/papers/placeholder/status.svg)](https://joss.theoj.org)
+
+Arrhen is a self-hosted GHG accounting platform aligned with the GHG
+Protocol Corporate Standard. It calculates Scope 1, 2, and 3 emissions
+from activity data, ingests field data directly from ODK/KoboToolbox
+forms, and produces audit-ready reports — with no per-seat pricing and
+no data leaving your infrastructure.
+
+Full research context, methodology, and related-work comparison are in
+[`paper.md`](paper.md). This README covers what the software does and
+how to run it.
+
+**Live demo:** [AWAITING DEPLOYMENT URL]
+**Repository:** https://github.com/[AUTHOR]/arrhen
 
 ---
 
-## Statement of Need
+## What it does
 
-Corporate carbon accounting in Africa is primarily outsourced to sustainability consultants who publish an annual report on their client's behalf. This creates data exposure risk, introduces inaccuracy through secondhand data collection, and leaves organisations with no internal capacity to engage with their own emissions data. At the same time, enterprise carbon accounting platforms (Watershed, Persefoni, IBM Envizi) are priced between $50,000–$200,000 per year — inaccessible to the SMEs and mid-market companies that constitute the majority of emitters in emerging economies.
-
-This gap is sharpening under new regulation. Nigeria's Climate Change Act 2021 mandates GHG reporting for qualifying organisations by 2027 and establishes the National Council on Climate Change (NCCC) as regulator of a nascent Emissions Trading Scheme. South Africa's mandatory carbon budgeting system began its first commitment period in January 2026. Across the continent, the African Carbon Markets Initiative (ACMI) targets 300 million carbon credits annually by 2030. Companies without traceable, methodology-transparent emission records are excluded from these markets.
-
-Arrhen addresses this by providing a free, self-hosted, GHG Protocol-aligned carbon accounting platform that organisations can operate internally — with no per-seat pricing, no data exposure to third parties, and full audit trail transparency. Its core differentiator is a native integration with ODK/KoboToolbox, the standard mobile data collection framework used by WHO, USAID, and the Red Cross for field data collection in low-connectivity environments. This integration allows field technicians to log daily operational activity directly into structured forms that feed automatically into the emission calculation engine — eliminating the manual data extraction step that makes consultant-led accounting inaccurate and expensive.
+- Calculates Scope 1/2/3 emissions using DEFRA 2023 and IEA 2022 factors, with IPCC AR6 (default) or AR5 GWP values
+- Resolves per-compound GWP for HFCs/PFCs (e.g. HFC-134a vs HFC-410A) rather than a flat aggregate
+- Ingests activity data via CSV upload or directly from KoboToolbox form submissions
+- Splits one field form submission into multiple emission-source records automatically (e.g. one daily log → diesel + refrigerant + natural gas records)
+- Tracks full data lineage: every emission figure traces back to its source record, factor version, and GWP version used
+- Multi-site, multi-tenant, role-based access (admin/analyst/viewer) with Postgres row-level security
+- Generates PDF/JSON emissions reports with an audit trail suitable for third-party verification
 
 ---
 
-## Functionality
+## Architecture
 
-- **Scope 1, 2, and 3 emission tracking** aligned with the GHG Protocol Corporate Standard
-- **Emission calculation engine** applying DEFRA 2023 and IEA 2022 factors with IPCC AR6 GWP100 values; AR5 also supported
-- **Per-compound GWP resolution** for HFCs and PFCs (HFC-134a, HFC-410A, etc.)
-- **ODK/KoboToolbox connector** — field form submissions split into validated activity records automatically
-- **CSV ingestion pipeline** with duplicate detection, quarantine, and full data lineage
-- **Multi-site, multi-scope dashboard** with target tracking, trend analysis, and geospatial emission intensity mapping
-- **PDF and JSON report generation** with audit trail export suitable for third-party verification
-- **Role-based access control** — admin, analyst, and viewer roles per organisation
-- **Multi-tenant architecture** — multiple organisations on shared infrastructure with row-level data isolation
+```mermaid
+flowchart LR
+    subgraph Field["Field Data Collection"]
+        KF[KoboToolbox Forms]
+    end
+
+    subgraph Ingest["Ingestion — backend/core/pipelines"]
+        CSV[CSV Upload]
+        KOBO[Kobo Connector]
+        VAL[Validator<br/>dedup + sanitisation]
+    end
+
+    subgraph AuthLayer["Supabase Auth"]
+        SA[Issues JWT<br/>RS256 / EC / EdDSA]
+    end
+
+    subgraph Backend["Backend — FastAPI"]
+        API[REST API<br/>router-level auth]
+        CALC[Calculation Engine<br/>GHG Protocol + AR6/AR5 GWP]
+        JWKS[JWT Verification<br/>via JWKS]
+    end
+
+    subgraph DB["Supabase — Postgres + PostGIS"]
+        T1[(organisations · sites)]
+        T2[(activity_records)]
+        T3[(emission_records)]
+        T4[(emission_factors · targets)]
+        T5[(data_lineage)]
+        T6[(users · organisation_memberships)]
+    end
+
+    subgraph Frontend["Frontend — React"]
+        UI[Overview · Trends · Sites<br/>Emission Factors · Data Management<br/>Flags & Quarantine · Reports]
+    end
+
+    KF -->|REST API| KOBO
+    CSV --> VAL
+    KOBO --> VAL
+    VAL -->|SQL insert| T2
+    VAL -->|SQL insert| T5
+
+    T2 -->|SQL read| CALC
+    CALC -->|SQL insert| T3
+    T4 -.->|factor lookup| CALC
+
+    UI -->|JWT bearer token| API
+    API <-->|verify| JWKS
+    JWKS -.->|JWKS endpoint| SA
+    SA -.->|issues token on login| UI
+
+    API -->|SQL, RLS enforced| T1
+    API -->|SQL, RLS enforced| T2
+    API -->|SQL, RLS enforced| T3
+    API -->|SQL, RLS enforced| T5
+    API -->|SQL, RLS enforced| T6
+    API -->|JSON / GeoJSON| UI
+```
+
+---
+
+## Sample KoboToolbox forms
+
+Arrhen ships with three reference forms demonstrating the field-data
+pipeline for an energy-sector deployment:
+
+| Form | Purpose | Splits into |
+|---|---|---|
+| [Daily Site Operations](https://kf.kobotoolbox.org/#/forms/aNogXjHodg7FY2J4KX5XD8) | Generator diesel, natural gas, refrigerant top-up | up to 3 records |
+| [Weekly Vehicle Fuel Log](https://kf.kobotoolbox.org/#/forms/avMLnVLKT367QmnkUHhADQ) | Light/heavy fleet fuel consumption | up to 4 records |
+| [Monthly Summary](https://kf.kobotoolbox.org/#/forms/at3WKHFVYgx6LR22yJySFz) | Electricity, business travel | up to 3 records |
+
+XLSForm definitions for all three are in [`docs/forms/`](docs/forms/) if
+you want to deploy them to your own KoboToolbox instance.
 
 ---
 
 ## Installation
 
 ### Prerequisites
-
-- Python 3.14+
+- Python 3.11+
 - Node.js 18+
-- Supabase project with PostGIS enabled
+- A Supabase project with PostGIS enabled
 
 ### Backend
 
@@ -54,8 +132,6 @@ cp .env.example .env
 # Fill in DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_JWT_SECRET
 
 alembic upgrade head
-python3 data/seed.py
-
 uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -67,9 +143,9 @@ npm install
 npm run dev
 ```
 
-Application runs at `http://localhost:5173`. API documentation at `http://localhost:8000/docs`.
+App runs at `http://localhost:5173`. API docs at `http://localhost:8000/docs`.
 
-### Environment Variables
+### Environment variables
 
 | Variable | Description |
 |---|---|
@@ -78,21 +154,10 @@ Application runs at `http://localhost:5173`. API documentation at `http://localh
 | `SUPABASE_ANON_KEY` | Supabase anonymous key |
 | `SUPABASE_JWT_SECRET` | JWT secret for token verification |
 | `DEFAULT_GWP_VERSION` | `AR6` or `AR5` |
-| `ALLOWED_ORIGINS` | Comma-separated list of allowed CORS origins |
+| `ALLOWED_ORIGINS` | Comma-separated CORS origins |
 | `KOBO_API_TOKEN` | KoboToolbox API token (optional) |
 
-See `.env.example` for the full list.
-
----
-
-## Data Upload
-
-Activity data is ingested via:
-
-1. **CSV upload** — download the template from the Data Management page, populate with activity data, and upload. Run calculations after each upload.
-2. **KoboToolbox integration** — connect field data collection forms; submissions are fetched and split into activity records automatically.
-
-See `docs/data_dictionary.md` for valid field values.
+See `.env.example` for the complete list.
 
 ---
 
@@ -102,21 +167,23 @@ See `docs/data_dictionary.md` for valid field values.
 python3 -m pytest tests/ -v
 ```
 
-Tests cover GWP constant correctness, per-compound HFC/PFC resolution, CSV validation and injection protection, and emission calculation accuracy against manually verified reference values.
+Covers GWP constant correctness, per-compound HFC/PFC resolution, CSV
+validation and injection protection, and calculation accuracy against
+manually verified reference values.
 
 ---
 
 ## Documentation
 
-| Document | Contents |
-|---|---|
-| [`docs/methodology.md`](docs/methodology.md) | GHG Protocol alignment, factor sources, GWP values, scope coverage, limitations |
-| [`docs/architecture.md`](docs/architecture.md) | System design, data flow, API structure, extension points |
-| [`docs/data_dictionary.md`](docs/data_dictionary.md) | Every table, field, valid values, units, relationships |
+- [`paper.md`](paper.md) — statement of need, methodology, related work (JOSS submission)
+- [`docs/architecture.md`](docs/architecture.md) — system design and extension points
+- [`docs/data_dictionary.md`](docs/data_dictionary.md) — every table, field, and valid value
 
 ---
 
-## Licence
+## License
 
-Source-available under the [Business Source Licence 1.1](LICENSE) (BUSL-1.1). Free for internal, research, educational, and non-commercial use. Converts to Apache 2.0 on 20 May 2029. See [COMMERCIAL.md](COMMERCIAL.md) for commercial licensing.
-
+AGPL-3.0. See [LICENSE](LICENSE). Copyright is retained by the author;
+the AGPL ensures that any modified version deployed as a network
+service remains open to the users of that service. If you want to use
+Arrhen under different terms, open an issue to discuss.
