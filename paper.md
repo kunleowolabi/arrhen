@@ -11,8 +11,8 @@ tags:
   - FastAPI
   - React
 authors:
-  - name: [AUTHOR NAME]
-    orcid: 0000-0000-0000-0000
+  - name: Kunle Owolabi
+    orcid: 0009-0001-1453-2572
     affiliation: 1
 affiliations:
   - name: Independent Researcher
